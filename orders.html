@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Orders — Mihira</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
+</head>
+<body>
+    <div id="toast-container"></div>
+    <aside id="sidebar"></aside>
+
+    <div class="main-content">
+        <div class="page-header">
+            <div><h1>Order Management</h1><p class="subtitle">Track order lifecycle</p></div>
+        </div>
+
+        <!-- Status Tabs -->
+        <div class="tabs" id="statusTabs">
+            <button class="tab-btn active" data-status="All">All</button>
+            <button class="tab-btn" data-status="Pending">Pending</button>
+            <button class="tab-btn" data-status="Dispatched">Dispatched</button>
+            <button class="tab-btn" data-status="Delivered">Delivered</button>
+            <button class="tab-btn" data-status="Returned">Returned</button>
+        </div>
+
+        <div class="controls">
+            <div class="search-box"><i class="ri-search-line"></i><input type="text" id="searchOrders" placeholder="Search order ID, customer..."></div>
+        </div>
+
+        <div id="loading" class="loading-state"><div class="spinner"></div><p>Loading orders...</p></div>
+        <div id="orders-list" class="hidden"></div>
+    </div>
+
+    <!-- Update Modal -->
+    <div class="modal-overlay" id="updateModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h2>Update Order</h2>
+                <button class="btn-icon" onclick="closeUpdateModal()"><i class="ri-close-line"></i></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="updateOrderId">
+                <div class="form-group"><label>Delivery Status</label>
+                    <select id="updateDelivery"><option>Pending</option><option>Dispatched</option><option>Delivered</option><option>Returned</option></select>
+                </div>
+                <div class="form-group"><label>Payment Status</label>
+                    <select id="updatePayStatus"><option>Paid</option><option>Unpaid</option><option>Partial</option></select>
+                </div>
+                <div class="form-group"><label>Payment Method</label>
+                    <select id="updatePayMethod"><option value="bKash">bKash</option><option value="Nagad">Nagad</option><option value="COD">COD</option><option value="Bank">Bank Transfer</option></select>
+                </div>
+                <div class="form-group"><label>Notes</label>
+                    <input type="text" id="updateNotes" placeholder="Optional notes">
+                </div>
+                <button class="btn btn-primary btn-large" id="saveUpdateBtn" onclick="saveUpdate()">Save Changes</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Payment Modal -->
+    <div class="modal-overlay" id="paymentModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h2>Record Payment</h2>
+                <button class="btn-icon" onclick="closePaymentModal()"><i class="ri-close-line"></i></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="payModalOrderId">
+                <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:16px">
+                    <div class="form-group"><label>Order Total</label><span id="payModalTotal" style="font-weight:600;font-size:16px">৳0</span></div>
+                    <div class="form-group"><label>Already Paid</label><span id="payModalPrevPaid" style="font-weight:600;color:var(--success)">৳0</span></div>
+                    <div class="form-group"><label>Due Amount</label><span id="payModalDue" style="font-weight:600;color:var(--danger)">৳0</span></div>
+                </div>
+                <div class="form-group" style="display:flex;gap:16px;align-items:center">
+                    <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+                        <input type="radio" name="payType" id="payModalFull" checked onchange="togglePayModalAmount()"> Full Payment
+                    </label>
+                    <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+                        <input type="radio" name="payType" id="payModalPartial" onchange="togglePayModalAmount()"> Add Partial
+                    </label>
+                </div>
+                <div class="form-group" id="payModalAmountRow" style="display:none">
+                    <label>Additional Amount (৳)</label>
+                    <input type="number" id="payModalAmount" placeholder="Enter amount received" min="0">
+                </div>
+                <button class="btn btn-primary btn-large" id="confirmPayBtn" onclick="confirmPayment()">Confirm Payment</button>
+            </div>
+        </div>
+    </div>
+    <script>window.APP_CONFIG={API_URL:"https://script.google.com/macros/s/AKfycbwQQrxrQ2A2XuH82kkXM69fX8uskeY93yjos1-AJzKHLhAc682fCLGajURcIlf2tw0M/exec"};</script>
+    <script src="shared.js"></script>
+    <script src="orders.js"></script>
+</body>
+</html>

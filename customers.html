@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Customers — Mihira</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
+</head>
+<body>
+    <div id="toast-container"></div>
+    <aside id="sidebar"></aside>
+
+    <div class="main-content">
+        <div class="page-header">
+            <div><h1>Customers</h1><p class="subtitle">Your customer directory</p></div>
+        </div>
+        <div class="stats-row" id="custStats"></div>
+        <div class="controls">
+            <div class="search-box"><i class="ri-search-line"></i><input type="text" id="searchCust" placeholder="Search name, phone..."></div>
+            <select id="sortCust">
+                <option value="name">Sort by Name</option>
+                <option value="spent">Sort by Total Spent</option>
+                <option value="orders">Sort by Total Orders</option>
+            </select>
+        </div>
+        <div id="loading" class="loading-state"><div class="spinner"></div><p>Loading customers...</p></div>
+        <div id="custTable" class="hidden" style="flex:1;overflow-y:auto">
+            <table class="data-table">
+                <thead><tr><th>Phone</th><th>Name</th><th>Email</th><th>City</th><th>Joined</th><th>Orders</th><th>Total Spent</th></tr></thead>
+                <tbody id="custBody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Customer Detail Panel -->
+    <div class="detail-panel" id="custPanel">
+        <div class="detail-panel-header">
+            <h2 id="panelCustName">Customer</h2>
+            <button class="btn-icon" onclick="closePanel()"><i class="ri-close-line"></i></button>
+        </div>
+        <div class="detail-panel-body" id="panelBody"></div>
+    </div>
+
+    <script>window.APP_CONFIG={API_URL:"https://script.google.com/macros/s/AKfycbwQQrxrQ2A2XuH82kkXM69fX8uskeY93yjos1-AJzKHLhAc682fCLGajURcIlf2tw0M/exec"};</script>
+    <script src="shared.js"></script>
+    <script src="customers.js"></script>
+</body>
+</html>

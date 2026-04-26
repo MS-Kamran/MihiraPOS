@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>POS — Mihira</title>
+    <meta name="description" content="Mihira Point of Sale System">
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
+</head>
+<body>
+    <div id="toast-container"></div>
+    <aside id="sidebar"></aside>
+
+    <div class="main-content">
+        <div class="pos-layout">
+            <!-- Left: Products -->
+            <div class="pos-products">
+                <div class="controls">
+                    <div class="search-box">
+                        <i class="ri-search-line"></i>
+                        <input type="text" id="searchInput" placeholder="Search SKU, name, color...">
+                    </div>
+                    <select id="filterName"><option value="all">All Designs</option></select>
+                    <select id="filterColor"><option value="all">All Colors</option></select>
+                    <select id="filterSize"><option value="all">All Sizes</option></select>
+                    <select id="filterStock"><option value="all">All Stock</option><option value="in_stock">In Stock</option><option value="low_stock">Low Stock</option><option value="out_of_stock">Out of Stock</option></select>
+                    <button class="btn" id="resetFiltersBtn" onclick="resetFilters()"><i class="ri-refresh-line"></i> Reset Filters</button>
+                </div>
+                <div id="loading" class="loading-state">
+                    <div class="spinner"></div><p>Loading inventory...</p>
+                </div>
+                <div id="product-grid" class="product-grid hidden"></div>
+                <div class="pagination-controls hidden" id="paginationControls">
+                    <button class="btn" id="prevPageBtn" onclick="prevPage()"><i class="ri-arrow-left-s-line"></i> Previous</button>
+                    <span id="pageIndicator">Page 1</span>
+                    <button class="btn" id="nextPageBtn" onclick="nextPage()">Next <i class="ri-arrow-right-s-line"></i></button>
+                </div>
+            </div>
+
+            <!-- Mobile Cart Toggle FAB -->
+            <button id="cartToggleFab" class="cart-fab" onclick="toggleMobileCart()">
+                <i class="ri-shopping-cart-2-line"></i>
+                <span id="fabBadge" class="fab-badge">0</span>
+            </button>
+
+            <!-- Right: Cart -->
+            <div class="pos-cart glass">
+                <div class="cart-header">
+                    <h2>Current Order</h2>
+                    <div style="display:flex;gap:8px">
+                        <button id="clearCartBtn" class="btn-icon danger" title="Clear Cart"><i class="ri-delete-bin-line"></i></button>
+                        <button class="btn-icon cart-close-btn" onclick="toggleMobileCart()" title="Close Cart"><i class="ri-close-line"></i></button>
+                    </div>
+                </div>
+                <div id="cart-items" class="cart-items">
+                    <div class="empty-cart"><i class="ri-shopping-cart-2-line"></i><p>Cart is empty</p></div>
+                </div>
+                <div class="checkout-wrapper">
+                    <h3>Customer</h3>
+                    <div class="checkout-row">
+                        <input type="text" id="custPhone" placeholder="Phone (Required)">
+                        <input type="text" id="custName" placeholder="Name">
+                    </div>
+                    <div class="checkout-row" style="margin-top:8px">
+                        <input type="text" id="custAddress" placeholder="Full Delivery Address" style="width:100%">
+                    </div>
+                    <h3>Payment</h3>
+                    <div class="checkout-row">
+                        <select id="paymentMethod">
+                            <option value="bKash">bKash</option>
+                            <option value="Nagad">Nagad</option>
+                            <option value="COD">COD</option>
+                            <option value="Bank">Bank Transfer</option>
+                        </select>
+                        <select id="paymentStatus">
+                            <option value="Paid">Paid</option>
+                            <option value="Unpaid">Unpaid</option>
+                            <option value="Partial">Partial</option>
+                        </select>
+                    </div>
+                    <div id="partialRow" class="checkout-row hidden">
+                        <input type="number" id="paidAmount" placeholder="Paid Amount (৳)">
+                        <input type="text" id="dueAmount" placeholder="Due Amount" readonly>
+                    </div>
+                    <h3>Delivery & Discount</h3>
+                    <div class="checkout-row">
+                        <select id="deliveryFee">
+                            <option value="0">Free Delivery</option>
+                            <option value="80">Delivery ৳80</option>
+                            <option value="120">Delivery ৳120</option>
+                        </select>
+                    </div>
+                    <div class="checkout-row" style="margin-top:8px">
+                        <select id="discountType">
+                            <option value="none">No Discount</option>
+                            <option value="percent">Discount %</option>
+                            <option value="fixed">Discount ৳</option>
+                        </select>
+                        <input type="number" id="discountValue" placeholder="0" min="0" style="display:none">
+                    </div>
+                    <div class="totals-box">
+                        <div class="total-row"><span>Items</span><span id="cartCount">0</span></div>
+                        <div class="total-row"><span>Subtotal</span><span id="cartSubtotal">৳0</span></div>
+                        <div class="total-row" id="deliveryFeeRow" style="display:none"><span>Delivery</span><span id="deliveryFeeDisplay">৳0</span></div>
+                        <div class="total-row" id="discountRow" style="display:none"><span>Discount</span><span id="discountDisplay">-৳0</span></div>
+                        <div class="total-row grand-total"><span>Total</span><span id="cartTotal">৳0</span></div>
+                    </div>
+                    <button id="checkoutBtn" class="btn btn-primary btn-large" disabled>Complete Checkout</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>window.APP_CONFIG={API_URL:"https://script.google.com/macros/s/AKfycbwQQrxrQ2A2XuH82kkXM69fX8uskeY93yjos1-AJzKHLhAc682fCLGajURcIlf2tw0M/exec"};</script>
+    <script src="shared.js"></script>
+    <script src="pos.js"></script>
+</body>
+</html>

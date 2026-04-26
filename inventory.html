@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inventory — Mihira</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
+</head>
+<body>
+    <div id="toast-container"></div>
+    <aside id="sidebar"></aside>
+
+    <div class="main-content">
+        <div class="page-header">
+            <div><h1>Inventory</h1><p class="subtitle">Browse your entire catalog</p></div>
+            <button class="btn btn-primary" onclick="openAddModal()"><i class="ri-add-line"></i> Add Product</button>
+        </div>
+
+        <!-- Stats -->
+        <div class="stats-row" id="statsRow"></div>
+
+        <!-- Filters -->
+        <div class="controls">
+            <div class="search-box">
+                <i class="ri-search-line"></i>
+                <input type="text" id="searchInput" placeholder="Search SKU, name, color...">
+            </div>
+            <select id="filterName"><option value="all">All Designs</option></select>
+            <select id="filterColor"><option value="all">All Colors</option></select>
+            <select id="filterSize"><option value="all">All Sizes</option></select>
+            <select id="filterStock"><option value="all">All Stock</option><option value="in_stock">In Stock</option><option value="low_stock">Low Stock</option><option value="out_of_stock">Out of Stock</option></select>
+            <button class="btn" id="resetFiltersBtn" onclick="resetFilters()"><i class="ri-refresh-line"></i> Reset Filters</button>
+        </div>
+
+        <!-- Loading -->
+        <div id="loading" class="loading-state"><div class="spinner"></div><p>Loading inventory...</p></div>
+
+        <!-- Product Grid -->
+        <div id="product-grid" class="product-grid hidden"></div>
+        <div class="pagination-controls hidden" id="paginationControls">
+            <button class="btn" id="prevPageBtn" onclick="prevPage()"><i class="ri-arrow-left-s-line"></i> Previous</button>
+            <span id="pageIndicator">Page 1</span>
+            <button class="btn" id="nextPageBtn" onclick="nextPage()">Next <i class="ri-arrow-right-s-line"></i></button>
+        </div>
+    </div>
+
+    <!-- Product Detail Modal -->
+    <div class="modal-overlay" id="productModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h2 id="modalTitle">Product Details</h2>
+                <button class="btn-icon" onclick="closeModal()"><i class="ri-close-line"></i></button>
+            </div>
+            <div class="modal-body" id="modalBody"></div>
+        </div>
+    </div>
+
+    <!-- Add Product Modal -->
+    <div class="modal-overlay" id="addModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h2>Add New Product</h2>
+                <button class="btn-icon" onclick="closeAddModal()"><i class="ri-close-line"></i></button>
+            </div>
+            <div class="modal-body">
+                <datalist id="nameSuggestions"></datalist>
+                <datalist id="colorSuggestions"></datalist>
+                
+                <div class="form-group"><label>Images (Comma separated URLs)</label><input type="text" id="addImages" placeholder="https://..., https://..."></div>
+                <div class="form-group"><label>Name</label><input type="text" id="addName" list="nameSuggestions" placeholder="e.g. Glass Churi" autocomplete="off"></div>
+                <div class="form-group"><label>Color</label><input type="text" id="addColor" list="colorSuggestions" placeholder="e.g. Red" autocomplete="off"></div>
+                
+                <div class="form-group">
+                    <label>Sizes</label>
+                    <div style="display:flex; gap:16px; flex-wrap:wrap; margin-top:8px;">
+                        <label style="cursor:pointer; display:flex; align-items:center; gap:6px;"><input type="checkbox" value="2.2" class="size-cb"> 2.2</label>
+                        <label style="cursor:pointer; display:flex; align-items:center; gap:6px;"><input type="checkbox" value="2.4" class="size-cb"> 2.4</label>
+                        <label style="cursor:pointer; display:flex; align-items:center; gap:6px;"><input type="checkbox" value="2.6" class="size-cb"> 2.6</label>
+                        <label style="cursor:pointer; display:flex; align-items:center; gap:6px;"><input type="checkbox" value="2.8" class="size-cb"> 2.8</label>
+                        <label style="cursor:pointer; display:flex; align-items:center; gap:6px;"><input type="checkbox" value="2.10" class="size-cb"> 2.10</label>
+                    </div>
+                </div>
+
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+                    <div class="form-group"><label>Set Quantity</label><input type="number" id="addSetQty" placeholder="e.g. 10"></div>
+                    <div class="form-group"><label>Churi in a Set</label><input type="number" id="addChuriInSet" placeholder="e.g. 24"></div>
+                    <div class="form-group"><label>Last Price (Cost)</label><input type="number" id="addLastPrice" placeholder="e.g. 300"></div>
+                    <div class="form-group"><label>Selling Price</label><input type="number" id="addSellingPrice" placeholder="e.g. 500"></div>
+                </div>
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-top:16px;">
+                    <label style="display:flex; align-items:center; gap:8px; cursor:pointer; color:var(--text-muted); font-size:14px;">
+                        <input type="checkbox" id="keepDetailsCheckbox" checked> Keep details for next product
+                    </label>
+                    <div style="display:flex; gap:12px;">
+                        <button class="btn" style="background:var(--panel-solid)" onclick="clearAddForm()">Clear Form</button>
+                        <button class="btn btn-primary" id="saveProductBtn" onclick="saveNewProduct()">Save Product</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>window.APP_CONFIG={API_URL:"https://script.google.com/macros/s/AKfycbwQQrxrQ2A2XuH82kkXM69fX8uskeY93yjos1-AJzKHLhAc682fCLGajURcIlf2tw0M/exec"};</script>
+    <script src="shared.js"></script>
+    <script src="inventory.js"></script>
+</body>
+</html>
