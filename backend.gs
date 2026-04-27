@@ -2,7 +2,6 @@ const INVENTORY_SHEET = "INVENTORY";
 const CUSTOMERS_SHEET = "CUSTOMERS";
 const ORDERS_SHEET = "ORDERS";
 const RETURNS_SHEET = "RETURNS";
-const DAMAGED_STOCK_SHEET = "DAMAGED_STOCK";
 
 // ─── GET Handler ────────────────────────────────────────
 function doGet(e) {
@@ -19,9 +18,6 @@ function doGet(e) {
   }
   if (action === "getReturns") {
     return createJsonResponse(getSheetDataAsJson(RETURNS_SHEET));
-  }
-  if (action === "getDamagedStock") {
-    return createJsonResponse(getSheetDataAsJson(DAMAGED_STOCK_SHEET));
   }
 
   return createJsonResponse({ error: "Invalid action" });
@@ -354,10 +350,12 @@ function handleProcessReturn(payload) {
   var goodCount = setSize - brokenCount;
   var returnType = brokenCount === 0 ? "Full Return" : "Damaged Return";
   var actionTaken = brokenCount === 0 ? "Restocked" : "Sent to Spares";
+  // spare_status tracks if spare pieces are still available or used in a rebuild
+  var spareStatus = brokenCount === 0 ? "" : "Available";
   var returnId = "RET-" + Date.now();
   var returnDate = new Date().toLocaleDateString("en-GB");
 
-  // Log to RETURNS sheet
+  // Log to RETURNS sheet (includes spare tracking columns)
   var returnSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(RETURNS_SHEET);
   if (!returnSheet) return createJsonResponse({ error: "RETURNS sheet not found" });
   var retHeaders = returnSheet.getRange(1, 1, 1, returnSheet.getLastColumn()).getValues()[0];
@@ -366,10 +364,13 @@ function handleProcessReturn(payload) {
     return_id: returnId, return_date: returnDate, order_id: orderId,
     serial: serial, name: name, color: color, size: size,
     set_size: setSize, broken_count: brokenCount, good_count: goodCount,
-    return_type: returnType, action_taken: actionTaken, notes: notes
+    return_type: returnType, action_taken: actionTaken, spare_status: spareStatus, notes: notes
   };
   retHeaders.forEach(function(h) { retRow.push(retData[String(h).trim()] !== undefined ? retData[String(h).trim()] : ""); });
   returnSheet.appendRow(retRow);
+
+  // Update order delivery status to Returned
+  markOrderReturned(orderId);
 
   // Full return: decrement SOLD to restore stock
   if (brokenCount === 0) {
@@ -387,53 +388,11 @@ function handleProcessReturn(payload) {
         }
       }
     }
-    // Update order delivery status to Returned
-    var orderSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(ORDERS_SHEET);
-    var orderData = orderSheet.getDataRange().getValues();
-    var orderHeaders = orderData[0];
-    var orderIdIdx = orderHeaders.indexOf("order_id");
-    var delStatusIdx = orderHeaders.indexOf("delivery_status");
-    if (orderIdIdx !== -1 && delStatusIdx !== -1) {
-      for (var j = 1; j < orderData.length; j++) {
-        if (String(orderData[j][orderIdIdx]) === orderId) {
-          orderSheet.getRange(j + 1, delStatusIdx + 1).setValue("Returned");
-          break;
-        }
-      }
-    }
     return createJsonResponse({ success: true, return_id: returnId, type: "full", message: "Product restocked" });
   }
 
-  // Damaged return: add good pieces to DAMAGED_STOCK
-  var dmgSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(DAMAGED_STOCK_SHEET);
-  if (!dmgSheet) return createJsonResponse({ error: "DAMAGED_STOCK sheet not found" });
-  var dmgHeaders = dmgSheet.getRange(1, 1, 1, dmgSheet.getLastColumn()).getValues()[0];
-  var dmgRow = [];
-  var dmgData = {
-    id: "DMG-" + Date.now(), return_id: returnId, date_added: returnDate,
-    name: name, color: color, size: size, pieces: goodCount, status: "Available"
-  };
-  dmgHeaders.forEach(function(h) { dmgRow.push(dmgData[String(h).trim()] !== undefined ? dmgData[String(h).trim()] : ""); });
-  dmgSheet.appendRow(dmgRow);
-
-  // Update order delivery status to Returned
-  var orderSheet2 = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(ORDERS_SHEET);
-  var orderData2 = orderSheet2.getDataRange().getValues();
-  var orderHeaders2 = orderData2[0];
-  var orderIdIdx2 = orderHeaders2.indexOf("order_id");
-  var delStatusIdx2 = orderHeaders2.indexOf("delivery_status");
-  if (orderIdIdx2 !== -1 && delStatusIdx2 !== -1) {
-    for (var k = 1; k < orderData2.length; k++) {
-      if (String(orderData2[k][orderIdIdx2]) === orderId) {
-        orderSheet2.getRange(k + 1, delStatusIdx2 + 1).setValue("Returned");
-        break;
-      }
-    }
-  }
-
-  // Check if rebuild is possible
+  // Damaged return: check if rebuild is now possible
   var rebuildCheck = checkRebuildInternal(name, color, size, setSize);
-
   return createJsonResponse({
     success: true, return_id: returnId, type: "damaged",
     spare_pieces: goodCount, can_rebuild: rebuildCheck.canRebuild,
@@ -441,23 +400,39 @@ function handleProcessReturn(payload) {
   });
 }
 
-// Internal helper to check rebuild possibility
+// Helper: mark order as Returned in ORDERS sheet
+function markOrderReturned(orderId) {
+  var orderSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(ORDERS_SHEET);
+  var orderData = orderSheet.getDataRange().getValues();
+  var orderHeaders = orderData[0];
+  var orderIdIdx = orderHeaders.indexOf("order_id");
+  var delStatusIdx = orderHeaders.indexOf("delivery_status");
+  if (orderIdIdx === -1 || delStatusIdx === -1) return;
+  for (var j = 1; j < orderData.length; j++) {
+    if (String(orderData[j][orderIdIdx]) === orderId) {
+      orderSheet.getRange(j + 1, delStatusIdx + 1).setValue("Returned");
+      break;
+    }
+  }
+}
+
+// Check rebuild possibility using RETURNS sheet (spare_status = Available)
 function checkRebuildInternal(name, color, size, setSize) {
-  var dmgSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(DAMAGED_STOCK_SHEET);
-  if (!dmgSheet) return { canRebuild: false, totalPieces: 0 };
-  var data = dmgSheet.getDataRange().getValues();
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(RETURNS_SHEET);
+  if (!sheet) return { canRebuild: false, totalPieces: 0 };
+  var data = sheet.getDataRange().getValues();
   var headers = data[0].map(function(h) { return String(h).trim(); });
   var nameIdx = headers.indexOf("name");
   var colorIdx = headers.indexOf("color");
   var sizeIdx = headers.indexOf("size");
-  var piecesIdx = headers.indexOf("pieces");
-  var statusIdx = headers.indexOf("status");
+  var goodIdx = headers.indexOf("good_count");
+  var spareIdx = headers.indexOf("spare_status");
 
   var totalPieces = 0;
   for (var i = 1; i < data.length; i++) {
     if (String(data[i][nameIdx]) === name && String(data[i][colorIdx]) === color &&
-        String(data[i][sizeIdx]) === size && String(data[i][statusIdx]) === "Available") {
-      totalPieces += parseInt(data[i][piecesIdx]) || 0;
+        String(data[i][sizeIdx]) === size && String(data[i][spareIdx]) === "Available") {
+      totalPieces += parseInt(data[i][goodIdx]) || 0;
     }
   }
   return { canRebuild: totalPieces >= setSize, totalPieces: totalPieces, setSize: setSize };
@@ -478,37 +453,37 @@ function handleExecuteRebuild(payload) {
   var size = String(payload.size || "");
   var setSize = parseInt(payload.set_size) || 12;
 
-  // Verify enough pieces
   var check = checkRebuildInternal(name, color, size, setSize);
   if (!check.canRebuild) return createJsonResponse({ error: "Not enough pieces to rebuild (" + check.totalPieces + "/" + setSize + ")" });
 
-  // Consume pieces from DAMAGED_STOCK (mark as Used in Rebuild)
-  var dmgSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(DAMAGED_STOCK_SHEET);
-  var data = dmgSheet.getDataRange().getValues();
+  // Consume spare pieces from RETURNS rows
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(RETURNS_SHEET);
+  var data = sheet.getDataRange().getValues();
   var headers = data[0].map(function(h) { return String(h).trim(); });
   var nameIdx = headers.indexOf("name");
   var colorIdx = headers.indexOf("color");
   var sizeIdx = headers.indexOf("size");
-  var piecesIdx = headers.indexOf("pieces");
-  var statusIdx = headers.indexOf("status");
+  var goodIdx = headers.indexOf("good_count");
+  var spareIdx = headers.indexOf("spare_status");
+  var actionIdx = headers.indexOf("action_taken");
 
   var remaining = setSize;
   for (var i = 1; i < data.length && remaining > 0; i++) {
     if (String(data[i][nameIdx]) === name && String(data[i][colorIdx]) === color &&
-        String(data[i][sizeIdx]) === size && String(data[i][statusIdx]) === "Available") {
-      var piecesHere = parseInt(data[i][piecesIdx]) || 0;
+        String(data[i][sizeIdx]) === size && String(data[i][spareIdx]) === "Available") {
+      var piecesHere = parseInt(data[i][goodIdx]) || 0;
       if (piecesHere <= remaining) {
-        dmgSheet.getRange(i + 1, statusIdx + 1).setValue("Used in Rebuild");
+        sheet.getRange(i + 1, spareIdx + 1).setValue("Used in Rebuild");
+        sheet.getRange(i + 1, actionIdx + 1).setValue("Rebuilt");
         remaining -= piecesHere;
       } else {
-        // Partial consumption: reduce pieces, keep Available
-        dmgSheet.getRange(i + 1, piecesIdx + 1).setValue(piecesHere - remaining);
+        sheet.getRange(i + 1, goodIdx + 1).setValue(piecesHere - remaining);
         remaining = 0;
       }
     }
   }
 
-  // Add 1 to SET QUANTITY in INVENTORY for the matching product
+  // Add 1 to SET QUANTITY in INVENTORY
   var invSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(INVENTORY_SHEET);
   var invData = invSheet.getDataRange().getValues();
   var invHeaders = invData[0];
