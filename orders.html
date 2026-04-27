@@ -32,6 +32,15 @@
 
         <div id="loading" class="loading-state"><div class="spinner"></div><p>Loading orders...</p></div>
         <div id="orders-list" class="hidden"></div>
+
+        <!-- Returns History (visible on Returned tab) -->
+        <div id="returns-history" class="hidden" style="margin-top:20px">
+            <div class="flex-between" style="margin-bottom:12px">
+                <h2 style="font-size:16px;font-weight:600"><i class="ri-arrow-go-back-line"></i> Return Records</h2>
+                <span id="returnsCount" class="badge badge-default">0</span>
+            </div>
+            <div id="returns-list" style="display:flex;flex-direction:column;gap:10px"></div>
+        </div>
     </div>
 
     <!-- Update Modal -->

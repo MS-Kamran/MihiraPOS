@@ -4,6 +4,7 @@
 let allOrders = [];
 let groupedOrders = {};
 let activeTab = "All";
+let allReturns = [];
 
 document.addEventListener("DOMContentLoaded", async () => {
   setupTabs();
@@ -30,15 +31,19 @@ function setupTabs() {
       btn.classList.add("active");
       activeTab = btn.dataset.status;
       renderOrders();
+      toggleReturnsPanel();
     });
   });
 }
 
 async function loadOrders() {
   try {
-    allOrders = await Api.getOrders();
+    const [ordersData, returnsData] = await Promise.all([Api.getOrders(), Api.getReturns()]);
+    allOrders = ordersData;
+    allReturns = returnsData;
     groupOrders();
     renderOrders();
+    toggleReturnsPanel();
     document.getElementById("loading").classList.add("hidden");
     document.getElementById("orders-list").classList.remove("hidden");
   } catch (err) {
@@ -161,6 +166,73 @@ function renderOrders() {
   if (rendered === 0) {
     container.innerHTML = '<div class="no-data">No orders found</div>';
   }
+}
+
+// ─── Returns History Panel ────────────────────────────
+function toggleReturnsPanel() {
+  const panel = document.getElementById("returns-history");
+  if (activeTab === "Returned") {
+    panel.classList.remove("hidden");
+    renderReturns();
+  } else {
+    panel.classList.add("hidden");
+  }
+}
+
+function renderReturns() {
+  const container = document.getElementById("returns-list");
+  const search = document.getElementById("searchOrders").value.toLowerCase();
+  container.innerHTML = "";
+
+  const filtered = allReturns.filter(r => {
+    if (!search) return true;
+    const haystack = `${r.return_id} ${r.order_id} ${r.name} ${r.color} ${r.serial}`.toLowerCase();
+    return haystack.includes(search);
+  });
+
+  document.getElementById("returnsCount").textContent = filtered.length;
+
+  if (filtered.length === 0) {
+    container.innerHTML = '<div class="no-data">No returns found</div>';
+    return;
+  }
+
+  // Newest first
+  filtered.reverse().forEach(ret => {
+    const isFull = ret.return_type === "Full Return";
+    const spareBadge = !isFull ? createSpareBadge(ret.spare_status) : "";
+    const card = document.createElement("div");
+    card.className = "order-card glass";
+    card.innerHTML = `
+      <div class="order-card-header">
+        <div>
+          <div class="order-id">${ret.return_id}</div>
+          <div class="order-date">${ret.return_date} · Order: ${ret.order_id}</div>
+        </div>
+        <div style="display:flex;gap:6px">
+          ${isFull ? '<span class="badge badge-success">Full Return</span>' : '<span class="badge badge-warning">Damaged</span>'}
+          ${spareBadge}
+        </div>
+      </div>
+      <div style="font-size:13px;color:var(--text-muted);margin-bottom:8px">
+        <strong>${ret.name}</strong> · ${ret.color} · Size ${ret.size} · Serial: ${ret.serial}
+      </div>
+      <div style="display:flex;gap:16px;font-size:13px;flex-wrap:wrap">
+        <span>Set: <strong>${ret.set_size}</strong></span>
+        <span>Broken: <strong style="color:${ret.broken_count > 0 ? 'var(--danger)' : 'var(--accent)'}">${ret.broken_count}</strong></span>
+        <span>Good: <strong style="color:var(--accent)">${ret.good_count}</strong></span>
+        <span>Action: <strong>${ret.action_taken}</strong></span>
+      </div>
+      ${ret.notes ? `<div style="font-size:12px;color:var(--text-muted);margin-top:6px;font-style:italic"><i class="ri-chat-3-line"></i> ${ret.notes}</div>` : ""}
+    `;
+    container.appendChild(card);
+  });
+}
+
+function createSpareBadge(status) {
+  if (status === "Available") return '<span class="badge badge-info">Spares Available</span>';
+  if (status === "Used in Rebuild") return '<span class="badge badge-success">Rebuilt</span>';
+  return "";
 }
 
 // ─── Quick Status Update ────────────────────────────────
