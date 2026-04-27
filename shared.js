@@ -94,6 +94,11 @@ const Api = {
   saveCustomer(payload) { return this.post("saveCustomer", payload); },
   saveInventory(payload) { return this.post("saveInventory", payload); },
   requestProduct(payload) { return this.post("requestProduct", payload); },
+  processReturn(payload) { return this.post("processReturn", payload); },
+  checkRebuild(payload)  { return this.post("checkRebuild", payload); },
+  executeRebuild(payload) { return this.post("executeRebuild", payload); },
+  getReturns()    { return this.get("getReturns"); },
+  getDamagedStock() { return this.get("getDamagedStock"); },
 };
 
 // Available stock = SET QUANTITY - SOLD (never mutate SET QUANTITY)

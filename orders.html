@@ -90,6 +90,56 @@
             </div>
         </div>
     </div>
+
+    <!-- Return Modal -->
+    <div class="modal-overlay" id="returnModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h2>Process Return</h2>
+                <button class="btn-icon" onclick="closeReturnModal()"><i class="ri-close-line"></i></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="returnOrderId">
+                <input type="hidden" id="returnSerial">
+                <input type="hidden" id="returnName">
+                <input type="hidden" id="returnColor">
+                <input type="hidden" id="returnSize">
+                <div id="returnItemInfo" style="padding:12px;background:rgba(0,0,0,0.2);border-radius:8px;margin-bottom:16px;font-size:13px"></div>
+                <div class="checkout-row" style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+                    <div class="form-group">
+                        <label>Set Size (total pieces)</label>
+                        <input type="number" id="returnSetSize" value="12" min="1">
+                    </div>
+                    <div class="form-group">
+                        <label>Broken Count</label>
+                        <input type="number" id="returnBrokenCount" value="0" min="0">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Notes (optional)</label>
+                    <input type="text" id="returnNotes" placeholder="Damage details...">
+                </div>
+                <div id="returnPreview" style="padding:10px;border-radius:6px;font-size:13px;margin-bottom:12px;background:rgba(16,185,129,0.1);color:#34d399;display:none"></div>
+                <button class="btn btn-primary btn-large" id="confirmReturnBtn" onclick="confirmReturn()">Process Return</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Rebuild Notification -->
+    <div id="rebuildBanner" style="display:none;position:fixed;top:16px;left:50%;transform:translateX(-50%);z-index:600;background:var(--panel-solid);border:2px solid var(--accent);border-radius:12px;padding:16px 24px;box-shadow:0 8px 32px rgba(0,0,0,0.5);max-width:420px;width:90%">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
+            <i class="ri-refresh-line" style="font-size:24px;color:var(--accent)"></i>
+            <div>
+                <div style="font-weight:700;font-size:15px">Rebuild Available!</div>
+                <div id="rebuildInfo" style="font-size:13px;color:var(--text-muted)"></div>
+            </div>
+        </div>
+        <div style="display:flex;gap:8px">
+            <button class="btn btn-success" onclick="executeRebuild()" style="flex:1"><i class="ri-check-line"></i> Rebuild Set</button>
+            <button class="btn btn-ghost" onclick="dismissRebuild()" style="flex:1">Dismiss</button>
+        </div>
+    </div>
+
     <script>window.APP_CONFIG={API_URL:"https://script.google.com/macros/s/AKfycbwQQrxrQ2A2XuH82kkXM69fX8uskeY93yjos1-AJzKHLhAc682fCLGajURcIlf2tw0M/exec"};</script>
     <script src="shared.js"></script>
     <script src="orders.js"></script>

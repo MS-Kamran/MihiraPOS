@@ -1,6 +1,8 @@
 const INVENTORY_SHEET = "INVENTORY";
 const CUSTOMERS_SHEET = "CUSTOMERS";
 const ORDERS_SHEET = "ORDERS";
+const RETURNS_SHEET = "RETURNS";
+const DAMAGED_STOCK_SHEET = "DAMAGED_STOCK";
 
 // ─── GET Handler ────────────────────────────────────────
 function doGet(e) {
@@ -14,6 +16,12 @@ function doGet(e) {
   }
   if (action === "getOrders") {
     return createJsonResponse(getSheetDataAsJson(ORDERS_SHEET));
+  }
+  if (action === "getReturns") {
+    return createJsonResponse(getSheetDataAsJson(RETURNS_SHEET));
+  }
+  if (action === "getDamagedStock") {
+    return createJsonResponse(getSheetDataAsJson(DAMAGED_STOCK_SHEET));
   }
 
   return createJsonResponse({ error: "Invalid action" });
@@ -30,6 +38,9 @@ function doPost(e) {
     if (action === "saveCustomer") return handleSaveCustomer(data.payload);
     if (action === "saveInventory") return handleSaveInventory(data.payload);
     if (action === "requestProduct") return handleRequestProduct(data.payload);
+    if (action === "processReturn") return handleProcessReturn(data.payload);
+    if (action === "checkRebuild") return handleCheckRebuild(data.payload);
+    if (action === "executeRebuild") return handleExecuteRebuild(data.payload);
 
     return createJsonResponse({ error: "Invalid POST action" });
   } catch (error) {
@@ -324,6 +335,198 @@ function handleRequestProduct(payload) {
   }
 
   return createJsonResponse({ error: "Product not found" });
+}
+
+// ─── Return Management ──────────────────────────────────
+function handleProcessReturn(payload) {
+  var orderId = String(payload.order_id || "").trim();
+  var serial = String(payload.serial || "").trim();
+  var name = String(payload.name || "").trim();
+  var color = String(payload.color || "").trim();
+  var size = String(payload.size || "").trim();
+  var setSize = parseInt(payload.set_size) || 12;
+  var brokenCount = parseInt(payload.broken_count) || 0;
+  var notes = String(payload.notes || "");
+
+  if (!orderId || !serial) return createJsonResponse({ error: "order_id and serial are required" });
+  if (brokenCount < 0 || brokenCount > setSize) return createJsonResponse({ error: "Invalid broken count" });
+
+  var goodCount = setSize - brokenCount;
+  var returnType = brokenCount === 0 ? "Full Return" : "Damaged Return";
+  var actionTaken = brokenCount === 0 ? "Restocked" : "Sent to Spares";
+  var returnId = "RET-" + Date.now();
+  var returnDate = new Date().toLocaleDateString("en-GB");
+
+  // Log to RETURNS sheet
+  var returnSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(RETURNS_SHEET);
+  if (!returnSheet) return createJsonResponse({ error: "RETURNS sheet not found" });
+  var retHeaders = returnSheet.getRange(1, 1, 1, returnSheet.getLastColumn()).getValues()[0];
+  var retRow = [];
+  var retData = {
+    return_id: returnId, return_date: returnDate, order_id: orderId,
+    serial: serial, name: name, color: color, size: size,
+    set_size: setSize, broken_count: brokenCount, good_count: goodCount,
+    return_type: returnType, action_taken: actionTaken, notes: notes
+  };
+  retHeaders.forEach(function(h) { retRow.push(retData[String(h).trim()] !== undefined ? retData[String(h).trim()] : ""); });
+  returnSheet.appendRow(retRow);
+
+  // Full return: decrement SOLD to restore stock
+  if (brokenCount === 0) {
+    var invSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(INVENTORY_SHEET);
+    var invData = invSheet.getDataRange().getValues();
+    var invHeaders = invData[0];
+    var serialIdx = invHeaders.indexOf("SERIAL");
+    var soldIdx = invHeaders.indexOf("SOLD");
+    if (serialIdx !== -1 && soldIdx !== -1) {
+      for (var i = 1; i < invData.length; i++) {
+        if (String(invData[i][serialIdx]) === serial) {
+          var currentSold = parseInt(invData[i][soldIdx]) || 0;
+          invSheet.getRange(i + 1, soldIdx + 1).setValue(Math.max(0, currentSold - 1));
+          break;
+        }
+      }
+    }
+    // Update order delivery status to Returned
+    var orderSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(ORDERS_SHEET);
+    var orderData = orderSheet.getDataRange().getValues();
+    var orderHeaders = orderData[0];
+    var orderIdIdx = orderHeaders.indexOf("order_id");
+    var delStatusIdx = orderHeaders.indexOf("delivery_status");
+    if (orderIdIdx !== -1 && delStatusIdx !== -1) {
+      for (var j = 1; j < orderData.length; j++) {
+        if (String(orderData[j][orderIdIdx]) === orderId) {
+          orderSheet.getRange(j + 1, delStatusIdx + 1).setValue("Returned");
+          break;
+        }
+      }
+    }
+    return createJsonResponse({ success: true, return_id: returnId, type: "full", message: "Product restocked" });
+  }
+
+  // Damaged return: add good pieces to DAMAGED_STOCK
+  var dmgSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(DAMAGED_STOCK_SHEET);
+  if (!dmgSheet) return createJsonResponse({ error: "DAMAGED_STOCK sheet not found" });
+  var dmgHeaders = dmgSheet.getRange(1, 1, 1, dmgSheet.getLastColumn()).getValues()[0];
+  var dmgRow = [];
+  var dmgData = {
+    id: "DMG-" + Date.now(), return_id: returnId, date_added: returnDate,
+    name: name, color: color, size: size, pieces: goodCount, status: "Available"
+  };
+  dmgHeaders.forEach(function(h) { dmgRow.push(dmgData[String(h).trim()] !== undefined ? dmgData[String(h).trim()] : ""); });
+  dmgSheet.appendRow(dmgRow);
+
+  // Update order delivery status to Returned
+  var orderSheet2 = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(ORDERS_SHEET);
+  var orderData2 = orderSheet2.getDataRange().getValues();
+  var orderHeaders2 = orderData2[0];
+  var orderIdIdx2 = orderHeaders2.indexOf("order_id");
+  var delStatusIdx2 = orderHeaders2.indexOf("delivery_status");
+  if (orderIdIdx2 !== -1 && delStatusIdx2 !== -1) {
+    for (var k = 1; k < orderData2.length; k++) {
+      if (String(orderData2[k][orderIdIdx2]) === orderId) {
+        orderSheet2.getRange(k + 1, delStatusIdx2 + 1).setValue("Returned");
+        break;
+      }
+    }
+  }
+
+  // Check if rebuild is possible
+  var rebuildCheck = checkRebuildInternal(name, color, size, setSize);
+
+  return createJsonResponse({
+    success: true, return_id: returnId, type: "damaged",
+    spare_pieces: goodCount, can_rebuild: rebuildCheck.canRebuild,
+    available_pieces: rebuildCheck.totalPieces
+  });
+}
+
+// Internal helper to check rebuild possibility
+function checkRebuildInternal(name, color, size, setSize) {
+  var dmgSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(DAMAGED_STOCK_SHEET);
+  if (!dmgSheet) return { canRebuild: false, totalPieces: 0 };
+  var data = dmgSheet.getDataRange().getValues();
+  var headers = data[0].map(function(h) { return String(h).trim(); });
+  var nameIdx = headers.indexOf("name");
+  var colorIdx = headers.indexOf("color");
+  var sizeIdx = headers.indexOf("size");
+  var piecesIdx = headers.indexOf("pieces");
+  var statusIdx = headers.indexOf("status");
+
+  var totalPieces = 0;
+  for (var i = 1; i < data.length; i++) {
+    if (String(data[i][nameIdx]) === name && String(data[i][colorIdx]) === color &&
+        String(data[i][sizeIdx]) === size && String(data[i][statusIdx]) === "Available") {
+      totalPieces += parseInt(data[i][piecesIdx]) || 0;
+    }
+  }
+  return { canRebuild: totalPieces >= setSize, totalPieces: totalPieces, setSize: setSize };
+}
+
+function handleCheckRebuild(payload) {
+  var name = String(payload.name || "");
+  var color = String(payload.color || "");
+  var size = String(payload.size || "");
+  var setSize = parseInt(payload.set_size) || 12;
+  var result = checkRebuildInternal(name, color, size, setSize);
+  return createJsonResponse({ success: true, can_rebuild: result.canRebuild, available_pieces: result.totalPieces, set_size: setSize });
+}
+
+function handleExecuteRebuild(payload) {
+  var name = String(payload.name || "");
+  var color = String(payload.color || "");
+  var size = String(payload.size || "");
+  var setSize = parseInt(payload.set_size) || 12;
+
+  // Verify enough pieces
+  var check = checkRebuildInternal(name, color, size, setSize);
+  if (!check.canRebuild) return createJsonResponse({ error: "Not enough pieces to rebuild (" + check.totalPieces + "/" + setSize + ")" });
+
+  // Consume pieces from DAMAGED_STOCK (mark as Used in Rebuild)
+  var dmgSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(DAMAGED_STOCK_SHEET);
+  var data = dmgSheet.getDataRange().getValues();
+  var headers = data[0].map(function(h) { return String(h).trim(); });
+  var nameIdx = headers.indexOf("name");
+  var colorIdx = headers.indexOf("color");
+  var sizeIdx = headers.indexOf("size");
+  var piecesIdx = headers.indexOf("pieces");
+  var statusIdx = headers.indexOf("status");
+
+  var remaining = setSize;
+  for (var i = 1; i < data.length && remaining > 0; i++) {
+    if (String(data[i][nameIdx]) === name && String(data[i][colorIdx]) === color &&
+        String(data[i][sizeIdx]) === size && String(data[i][statusIdx]) === "Available") {
+      var piecesHere = parseInt(data[i][piecesIdx]) || 0;
+      if (piecesHere <= remaining) {
+        dmgSheet.getRange(i + 1, statusIdx + 1).setValue("Used in Rebuild");
+        remaining -= piecesHere;
+      } else {
+        // Partial consumption: reduce pieces, keep Available
+        dmgSheet.getRange(i + 1, piecesIdx + 1).setValue(piecesHere - remaining);
+        remaining = 0;
+      }
+    }
+  }
+
+  // Add 1 to SET QUANTITY in INVENTORY for the matching product
+  var invSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(INVENTORY_SHEET);
+  var invData = invSheet.getDataRange().getValues();
+  var invHeaders = invData[0];
+  var invNameIdx = invHeaders.indexOf("NAME");
+  var invColorIdx = invHeaders.indexOf("COLOR");
+  var invSizeIdx = invHeaders.indexOf("SIZE");
+  var invQtyIdx = invHeaders.indexOf("SET QUANTITY");
+
+  for (var j = 1; j < invData.length; j++) {
+    if (String(invData[j][invNameIdx]) === name && String(invData[j][invColorIdx]) === color &&
+        String(invData[j][invSizeIdx]) === size) {
+      var currentQty = parseInt(invData[j][invQtyIdx]) || 0;
+      invSheet.getRange(j + 1, invQtyIdx + 1).setValue(currentQty + 1);
+      break;
+    }
+  }
+
+  return createJsonResponse({ success: true, message: "Rebuilt 1 set of " + name + " " + color + " Size " + size });
 }
 
 // ─── Utilities ──────────────────────────────────────────

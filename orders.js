@@ -16,6 +16,9 @@ document.addEventListener("DOMContentLoaded", async () => {
   document.getElementById("paymentModal").addEventListener("click", (e) => {
     if (e.target.classList.contains("modal-overlay")) closePaymentModal();
   });
+  document.getElementById("returnModal").addEventListener("click", (e) => {
+    if (e.target.classList.contains("modal-overlay")) closeReturnModal();
+  });
 
   await loadOrders();
 });
@@ -145,6 +148,7 @@ function renderOrders() {
         <div class="order-actions">
           ${order.delivery_status === "Pending" ? `<button class="btn btn-warning" onclick="quickUpdate('${id}','Dispatched')"><i class="ri-truck-line"></i> Dispatch</button>` : ""}
           ${order.delivery_status === "Dispatched" ? `<button class="btn btn-info" onclick="quickUpdate('${id}','Delivered')"><i class="ri-check-line"></i> Delivered</button>` : ""}
+          ${order.delivery_status === "Delivered" ? `<button class="btn btn-danger" onclick="openReturnModal('${id}')"><i class="ri-arrow-go-back-line"></i> Return</button>` : ""}
           ${order.payment_status !== "Paid" ? `<button class="btn btn-success" onclick="openPaymentModal('${id}')"><i class="ri-money-dollar-circle-line"></i> Mark Paid</button>` : ""}
           <button class="btn btn-ghost" onclick="openUpdateModal('${id}')"><i class="ri-edit-line"></i> Update</button>
         </div>
@@ -293,4 +297,123 @@ async function saveUpdate() {
   }
 }
 
+// ─── Return Management ──────────────────────────────────
+let pendingRebuild = null;
 
+function openReturnModal(orderId) {
+  const order = groupedOrders[orderId];
+  if (!order) return;
+  const firstRow = order.rows[0];
+  const serial = String(firstRow.serial || "");
+  const name = String(firstRow.name || firstRow.serial || "");
+  const color = String(firstRow.color || "");
+  const size = String(firstRow.size || "");
+
+  document.getElementById("returnOrderId").value = orderId;
+  document.getElementById("returnSerial").value = serial;
+  document.getElementById("returnName").value = name;
+  document.getElementById("returnColor").value = color;
+  document.getElementById("returnSize").value = size;
+  document.getElementById("returnBrokenCount").value = "0";
+  document.getElementById("returnNotes").value = "";
+  document.getElementById("returnPreview").style.display = "none";
+
+  document.getElementById("returnItemInfo").innerHTML = `
+    <strong>${orderId}</strong> — ${name} · ${color} · Size ${size}<br>
+    <span style="color:var(--text-muted)">Customer: ${order.customer_name} · ${order.customer_phone}</span>
+  `;
+
+  // Live preview
+  const brokenInput = document.getElementById("returnBrokenCount");
+  const setSizeInput = document.getElementById("returnSetSize");
+  const updatePreview = () => {
+    const setSize = parseInt(setSizeInput.value) || 12;
+    const broken = parseInt(brokenInput.value) || 0;
+    const preview = document.getElementById("returnPreview");
+    if (broken === 0) {
+      preview.style.display = "block";
+      preview.style.background = "rgba(16,185,129,0.1)";
+      preview.style.color = "#34d399";
+      preview.innerHTML = "<strong>Full Return</strong> — Product will be restocked automatically";
+    } else if (broken > 0 && broken <= setSize) {
+      preview.style.display = "block";
+      preview.style.background = "rgba(245,158,11,0.1)";
+      preview.style.color = "#fbbf24";
+      preview.innerHTML = `<strong>Damaged Return</strong> — ${setSize - broken} good pieces will be saved as spares`;
+    } else {
+      preview.style.display = "none";
+    }
+  };
+  brokenInput.oninput = updatePreview;
+  setSizeInput.oninput = updatePreview;
+  updatePreview();
+
+  document.getElementById("returnModal").classList.add("open");
+}
+
+function closeReturnModal() {
+  document.getElementById("returnModal").classList.remove("open");
+}
+
+async function confirmReturn() {
+  const btn = document.getElementById("confirmReturnBtn");
+  btn.disabled = true;
+  btn.innerHTML = '<div class="spinner" style="width:18px;height:18px;margin:0 auto"></div>';
+
+  const payload = {
+    order_id: document.getElementById("returnOrderId").value,
+    serial: document.getElementById("returnSerial").value,
+    name: document.getElementById("returnName").value,
+    color: document.getElementById("returnColor").value,
+    size: document.getElementById("returnSize").value,
+    set_size: parseInt(document.getElementById("returnSetSize").value) || 12,
+    broken_count: parseInt(document.getElementById("returnBrokenCount").value) || 0,
+    notes: document.getElementById("returnNotes").value,
+  };
+
+  try {
+    const result = await Api.processReturn(payload);
+    if (!result.success) throw new Error(result.error || "Return failed");
+
+    if (result.type === "full") {
+      showToast("Full return processed — product restocked!", "success");
+    } else {
+      showToast(`Damaged return processed — ${result.spare_pieces} pieces saved as spares`, "info");
+      if (result.can_rebuild) {
+        showRebuildBanner(payload.name, payload.color, payload.size, payload.set_size, result.available_pieces);
+      }
+    }
+
+    closeReturnModal();
+    await loadOrders();
+  } catch (err) {
+    showToast(err.message || "Return failed", "error");
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = "Process Return";
+  }
+}
+
+function showRebuildBanner(name, color, size, setSize, availablePieces) {
+  pendingRebuild = { name, color, size, set_size: setSize };
+  document.getElementById("rebuildInfo").textContent =
+    `${availablePieces} spare pieces of ${name} ${color} Size ${size} available — enough to rebuild a full set of ${setSize}!`;
+  document.getElementById("rebuildBanner").style.display = "block";
+}
+
+function dismissRebuild() {
+  document.getElementById("rebuildBanner").style.display = "none";
+  pendingRebuild = null;
+}
+
+async function executeRebuild() {
+  if (!pendingRebuild) return;
+  try {
+    const result = await Api.executeRebuild(pendingRebuild);
+    if (!result.success) throw new Error(result.error || "Rebuild failed");
+    showToast(result.message, "success");
+    dismissRebuild();
+  } catch (err) {
+    showToast(err.message || "Rebuild failed", "error");
+  }
+}
