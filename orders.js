@@ -378,7 +378,7 @@ function openReturnModal(orderId) {
   if (!order) return;
   const firstRow = order.rows[0];
   const serial = String(firstRow.serial || "");
-  const name = String(firstRow.name || firstRow.serial || "");
+  const name = String(firstRow.category || firstRow.name || firstRow.serial || "");
   const color = String(firstRow.color || "");
   const size = String(firstRow.size || "");
 

@@ -241,36 +241,32 @@ function updateInventoryLevels(items) {
   var data = sheet.getDataRange().getValues();
   var headers = data[0];
   var skuIndex = headers.indexOf("SERIAL");
-  var stockIndex = headers.indexOf("SET QUANTITY");
   var soldIndex = headers.indexOf("SOLD");
 
-  if (skuIndex === -1 || stockIndex === -1) return;
+  if (skuIndex === -1 || soldIndex === -1) return;
 
-  // Aggregate sold quantities by SKU
+  // Aggregate sold quantities by individual SKU
+  // POS sends comma-separated serials (e.g. "SER1, SER2") with matching comma-separated quantities
   var salesMap = {};
   items.forEach(function (item) {
-    var sku = item["serial"];
-    var qty = parseInt(item["quantity"]) || 0;
-    if (sku) {
+    var skuRaw = String(item["serial"] || "");
+    var qtyRaw = String(item["quantity"] || "0");
+    var skus = skuRaw.split(",").map(function(s) { return s.trim(); }).filter(Boolean);
+    var qtys = qtyRaw.split(",").map(function(q) { return parseInt(q.trim()) || 1; });
+
+    skus.forEach(function(sku, idx) {
+      var qty = qtys[idx] || qtys[0] || 1;
       salesMap[sku] = (salesMap[sku] || 0) + qty;
-    }
+    });
   });
 
+  // Only increment SOLD — never touch SET QUANTITY (immutable)
   for (var i = 1; i < data.length; i++) {
-    var rowSku = data[i][skuIndex];
+    var rowSku = String(data[i][skuIndex]).trim();
     if (!salesMap[rowSku]) continue;
 
-    var currentStock = parseInt(data[i][stockIndex]) || 0;
-    var soldQty = salesMap[rowSku];
-
-    sheet
-      .getRange(i + 1, stockIndex + 1)
-      .setValue(Math.max(0, currentStock - soldQty));
-
-    if (soldIndex !== -1) {
-      var currentSold = parseInt(data[i][soldIndex]) || 0;
-      sheet.getRange(i + 1, soldIndex + 1).setValue(currentSold + soldQty);
-    }
+    var currentSold = parseInt(data[i][soldIndex]) || 0;
+    sheet.getRange(i + 1, soldIndex + 1).setValue(currentSold + salesMap[rowSku]);
   }
 }
 
