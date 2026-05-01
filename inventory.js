@@ -16,6 +16,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   const cached = Api.getCachedInventory();
   if (cached) {
     inventory = cached.filter((i) => (i.SKU || i.SERIAL) && i.NAME);
+    inventory.sort((a, b) => (parseInt(b.SOLD) || 0) - (parseInt(a.SOLD) || 0));
     populateFiltersAndRender();
     document.getElementById("loading").classList.add("hidden");
     document.getElementById("product-grid").classList.remove("hidden");
@@ -24,6 +25,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   try {
     const data = await Api.getInventory();
     inventory = data.filter((i) => (i.SKU || i.SERIAL) && i.NAME);
+    inventory.sort((a, b) => (parseInt(b.SOLD) || 0) - (parseInt(a.SOLD) || 0));
     populateFiltersAndRender();
     document.getElementById("loading").classList.add("hidden");
     document.getElementById("product-grid").classList.remove("hidden");

@@ -75,12 +75,14 @@ async function loadInventory() {
   const cached = Api.getCachedInventory();
   if (cached) {
     inventory = cached.filter((item) => (item.SKU || item.SERIAL) && item.NAME);
+    inventory.sort((a, b) => (parseInt(b.SOLD) || 0) - (parseInt(a.SOLD) || 0));
     populateFiltersAndShow();
   }
 
   try {
     const data = await Api.getInventory();
     inventory = data.filter((item) => (item.SKU || item.SERIAL) && item.NAME);
+    inventory.sort((a, b) => (parseInt(b.SOLD) || 0) - (parseInt(a.SOLD) || 0));
     populateFiltersAndShow();
   } catch (err) {
     if (!cached) showToast("Failed to load inventory", "error");

@@ -224,7 +224,7 @@ function renderOrders() {
             ${order.delivery_status === "Dispatched" ? `<button class="btn btn-info" onclick="quickUpdate('${id}','Delivered')"><i class="ri-check-line"></i> Delivered</button>` : ""}
             ${order.delivery_status === "Delivered" ? `<button class="btn btn-danger" onclick="openReturnModal('${id}')"><i class="ri-arrow-go-back-line"></i> Return</button>` : ""}
             ${order.payment_status !== "Paid" ? `<button class="btn btn-success" onclick="openPaymentModal('${id}')"><i class="ri-money-dollar-circle-line"></i> Mark Paid</button>` : ""}
-            <button class="btn btn-ghost" onclick="openUpdateModal('${id}')"><i class="ri-edit-line"></i> Update</button>
+            <button class="btn btn-outline" style="border: 1px solid var(--border); background: transparent; color: var(--text)" onclick="openUpdateModal('${id}')"><i class="ri-settings-4-line"></i> Manual Update</button>
           </div>
         </div>
       </div>
