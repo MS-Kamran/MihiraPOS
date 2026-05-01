@@ -211,13 +211,9 @@ function renderOrders() {
       </div>
       <div class="order-accordion-body">
         ${noteHtml}
-        <div style="margin-top:12px;margin-bottom:12px;max-height:240px;overflow-y:auto;padding-right:8px;" class="custom-scrollbar">
-          ${buildItemRows(order)}
-        </div>
-        <div style="display:flex;justify-content:space-between;align-items:center;padding-top:12px;border-top:1px dashed var(--border)">
+        <div style="display:flex;justify-content:space-between;align-items:center;padding-bottom:12px;margin-bottom:12px;border-bottom:1px dashed var(--border)">
           <div style="font-size:13px;color:var(--text-muted)">
-            ${order.discount ? `Disc: <span style="color:var(--accent)">${order.discount}</span>` : ""}
-            ${order.payment_status === "Partial" ? ` | Paid: ${formatCurrency(order.paid_amount || 0)} | Due: ${formatCurrency(order.due_amount || 0)}` : ""}
+            <strong>Actions</strong>
           </div>
           <div class="order-actions">
             ${order.delivery_status === "Pending" ? `<button class="btn btn-warning" onclick="quickUpdate('${id}','Dispatched')"><i class="ri-truck-line"></i> Dispatch</button>` : ""}
@@ -225,6 +221,15 @@ function renderOrders() {
             ${order.delivery_status === "Delivered" ? `<button class="btn btn-danger" onclick="openReturnModal('${id}')"><i class="ri-arrow-go-back-line"></i> Return</button>` : ""}
             ${order.payment_status !== "Paid" ? `<button class="btn btn-success" onclick="openPaymentModal('${id}')"><i class="ri-money-dollar-circle-line"></i> Mark Paid</button>` : ""}
             <button class="btn btn-outline" style="border: 1px solid var(--border); background: transparent; color: var(--text)" onclick="openUpdateModal('${id}')"><i class="ri-settings-4-line"></i> Manual Update</button>
+          </div>
+        </div>
+        <div style="margin-top:12px;margin-bottom:12px;max-height:240px;overflow-y:auto;padding-right:8px;" class="custom-scrollbar">
+          ${buildItemRows(order)}
+        </div>
+        <div style="display:flex;justify-content:flex-end;align-items:center;padding-top:12px;border-top:1px dashed var(--border)">
+          <div style="font-size:13px;color:var(--text-muted)">
+            ${order.discount ? `Disc: <span style="color:var(--accent)">${order.discount}</span>` : ""}
+            ${order.payment_status === "Partial" ? ` | Paid: ${formatCurrency(order.paid_amount || 0)} | Due: ${formatCurrency(order.due_amount || 0)}` : ""}
           </div>
         </div>
       </div>
