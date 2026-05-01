@@ -145,6 +145,7 @@ function renderOrders() {
         </div>
       </div>
       <div class="order-customer"><i class="ri-user-line"></i> ${order.customer_name} · ${order.customer_phone}</div>
+      ${order.notes ? `<div style="font-size:12px;color:var(--danger);margin-bottom:8px;padding:6px 10px;background:rgba(239,68,68,0.08);border-radius:6px;border-left:3px solid var(--danger)"><i class="ri-sticky-note-line"></i> ${order.notes}</div>` : ""}
       <div class="order-items-list">
         ${buildItemRows(order)}
       </div>
