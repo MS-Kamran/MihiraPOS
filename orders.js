@@ -380,7 +380,7 @@ async function confirmPayment() {
       groupedOrders[orderId].payment_status = newPayStatus;
       groupedOrders[orderId].paid_amount = newPaidAmount;
       groupedOrders[orderId].due_amount = newDueAmount;
-      groupedOrders[orderId].items.forEach((i) => {
+      groupedOrders[orderId].rows.forEach((i) => {
         i.payment_status = newPayStatus;
         i.paid_amount = newPaidAmount;
         i.due_amount = newDueAmount;
@@ -428,7 +428,7 @@ async function saveUpdate() {
     // Update local state
     if (groupedOrders[orderId]) {
       Object.assign(groupedOrders[orderId], payload);
-      groupedOrders[orderId].items.forEach((i) => Object.assign(i, payload));
+      groupedOrders[orderId].rows.forEach((i) => Object.assign(i, payload));
     }
     closeUpdateModal();
     renderOrders();
