@@ -173,6 +173,19 @@ function renderOrders() {
       }
     }
 
+    // Format dates to look nice
+    const cleanDate = new Date(order.date).toLocaleDateString('en-GB') !== 'Invalid Date' 
+      ? new Date(order.date).toLocaleDateString('en-GB') 
+      : order.date;
+      
+    let cleanTime = order.time;
+    if (String(order.time).includes('T')) {
+      const timeObj = new Date(order.time);
+      if (!isNaN(timeObj.getTime())) {
+        cleanTime = timeObj.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+      }
+    }
+
     const noteHtml = order.notes ? `<div style="font-size:12px;color:var(--danger);margin-top:8px;padding:6px 10px;background:rgba(239,68,68,0.08);border-radius:6px;border-left:3px solid var(--danger)"><i class="ri-sticky-note-line"></i> ${order.notes}</div>` : "";
     
     const card = document.createElement("div");
@@ -183,7 +196,7 @@ function renderOrders() {
         <div class="accordion-left">
           <div style="font-weight:600;color:var(--text)">${order.order_id}</div>
           <div style="font-size:12px;color:var(--text-muted)"><i class="ri-user-line"></i> ${order.customer_name} · ${order.customer_phone}</div>
-          <div style="font-size:12px;color:var(--text-muted)">${order.date} ${order.time}</div>
+          <div style="font-size:12px;color:var(--text-muted)">${cleanDate} · ${cleanTime}</div>
         </div>
         <div class="accordion-right">
           <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
