@@ -37,12 +37,12 @@ document.addEventListener("DOMContentLoaded", async () => {
     deliveryFeeDisplay: document.getElementById("deliveryFeeDisplay"),
     discountRow: document.getElementById("discountRow"),
     discountDisplay: document.getElementById("discountDisplay"),
-    orderNote: document.getElementById("orderNote"),
     resetFiltersBtn: document.getElementById("resetFiltersBtn"),
     paginationControls: document.getElementById("paginationControls"),
     prevPageBtn: document.getElementById("prevPageBtn"),
     nextPageBtn: document.getElementById("nextPageBtn"),
     pageIndicator: document.getElementById("pageIndicator"),
+    orderNote: document.getElementById("orderNote"),
   };
 
   setupListeners();
@@ -387,7 +387,7 @@ async function handleCheckout() {
     size: sizeList, quantity: totalQty, unit_price: unitPriceList,
     total_price: subtotal, discount: discountLabel, total_amount: orderTotal,
     action: "Sale", payment_status: payStatus,
-    paid_amount: paidAmt, due_amount: dueAmt, delivery_status: "Pending", notes: el.orderNote.value.trim(),
+    paid_amount: paidAmt, due_amount: dueAmt, delivery_status: "Pending", notes: (el.orderNote.value || "").trim(),
   };
 
   try {
@@ -408,12 +408,12 @@ async function handleCheckout() {
     el.custPhone.value = "";
     el.custName.value = "";
     el.custAddress.value = "";
+    el.orderNote.value = "";
     el.paidAmount.value = "";
     el.deliveryFee.value = "0";
     el.discountType.value = "none";
     el.discountValue.value = "";
     el.discountValue.style.display = "none";
-    el.orderNote.value = "";
     clearCart();
     renderProducts();
   } catch (err) {
