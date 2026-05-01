@@ -5,10 +5,13 @@ let allOrders = [];
 let groupedOrders = {};
 let activeTab = "All";
 let allReturns = [];
+let inventoryCache = [];
 
 document.addEventListener("DOMContentLoaded", async () => {
   setupTabs();
   document.getElementById("searchOrders").addEventListener("input", renderOrders);
+  document.getElementById("dateFrom").addEventListener("change", renderOrders);
+  document.getElementById("dateTo").addEventListener("change", renderOrders);
 
   // Close modal on overlay click
   document.getElementById("updateModal").addEventListener("click", (e) => {
@@ -38,6 +41,9 @@ function setupTabs() {
 
 async function loadOrders() {
   try {
+    // Load inventory cache for product images
+    inventoryCache = Api.getCachedInventory() || [];
+    
     const [ordersData, returnsData] = await Promise.all([Api.getOrders(), Api.getReturns()]);
     allOrders = ordersData;
     allReturns = returnsData;
@@ -89,29 +95,54 @@ function groupOrders() {
   });
 }
 
-// Parse comma-separated item fields from a consolidated order row
+// Toggle accordion open/close
+window.toggleAccordion = function(orderId) {
+  const el = document.getElementById(`acc-${orderId}`);
+  if (el) el.classList.toggle("open");
+};
+
+// Find matching product image from inventory cache
+function getProductImage(serial, name, color) {
+  const match = inventoryCache.find(i => String(i.SERIAL) === String(serial) || (String(i.NAME) === String(name) && String(i.COLOR) === String(color)));
+  if (match) {
+    return getFirstImageUrl(match["IMAGE LINK"], match.IMAGES);
+  }
+  return "";
+}
+
+// Parse comma-separated item fields from a consolidated order row and build cards with images
 function buildItemRows(order) {
   const firstRow = order.rows[0];
   const serials = String(firstRow.serial || "").split(",").map(s => s.trim());
+  const categories = String(firstRow.category || "").split(",").map(s => s.trim());
   const colors = String(firstRow.color || "").split(",").map(s => s.trim());
   const sizes = String(firstRow.size || "").split(",").map(s => s.trim());
   const quantities = String(firstRow.quantity || "").split(",").map(s => s.trim());
 
-  // If only one serial, render as a single line
-  if (serials.length <= 1) {
-    return `<div class="order-item-row"><span>${firstRow.serial || "-"} · ${firstRow.color || "-"} · Size ${firstRow.size || "-"} × ${firstRow.quantity || 1}</span></div>`;
-  }
-
   return serials.map((serial, idx) => {
+    const category = categories[idx] || categories[0] || "Product";
     const color = colors[idx] || colors[0] || "-";
     const size = sizes[idx] || sizes[0] || "-";
-    const qty = quantities[idx] || "1";
-    return `<div class="order-item-row"><span>${serial} · ${color} · Size ${size} × ${qty}</span></div>`;
+    const qty = quantities[idx] || quantities[0] || "1";
+    const imgUrl = getProductImage(serial, category, color);
+
+    return `
+      <div class="order-item-card">
+        ${imgUrl ? `<img src="${imgUrl}" class="order-item-img" referrerpolicy="no-referrer">` : `<div class="order-item-img"></div>`}
+        <div class="order-item-info">
+          <div class="order-item-title">${category}</div>
+          <div class="order-item-meta">${color} · Size ${size} · Serial: ${serial}</div>
+        </div>
+        <div style="font-weight:600;font-size:14px">× ${qty}</div>
+      </div>
+    `;
   }).join("");
 }
 
 function renderOrders() {
   const search = document.getElementById("searchOrders").value.toLowerCase();
+  const fromVal = document.getElementById("dateFrom").value;
+  const toVal = document.getElementById("dateTo").value;
   const container = document.getElementById("orders-list");
   container.innerHTML = "";
 
@@ -130,33 +161,58 @@ function renderOrders() {
       const haystack = `${order.order_id} ${order.customer_name} ${order.customer_phone}`.toLowerCase();
       if (!haystack.includes(search)) return;
     }
+    
+    // Date filter
+    const orderDate = new Date(order.date);
+    if (!isNaN(orderDate.getTime())) {
+      if (fromVal && orderDate < new Date(fromVal)) return;
+      if (toVal) {
+        const toDate = new Date(toVal);
+        toDate.setHours(23, 59, 59);
+        if (orderDate > toDate) return;
+      }
+    }
 
+    const noteHtml = order.notes ? `<div style="font-size:12px;color:var(--danger);margin-top:8px;padding:6px 10px;background:rgba(239,68,68,0.08);border-radius:6px;border-left:3px solid var(--danger)"><i class="ri-sticky-note-line"></i> ${order.notes}</div>` : "";
+    
     const card = document.createElement("div");
-    card.className = "order-card glass";
+    card.className = "order-accordion";
+    card.id = `acc-${id}`;
     card.innerHTML = `
-      <div class="order-card-header">
-        <div>
-          <div class="order-id">${order.order_id}</div>
-          <div class="order-date">${order.date} ${order.time}</div>
+      <div class="order-accordion-header" onclick="toggleAccordion('${id}')">
+        <div class="accordion-left">
+          <div style="font-weight:600;color:var(--text)">${order.order_id}</div>
+          <div style="font-size:12px;color:var(--text-muted)"><i class="ri-user-line"></i> ${order.customer_name} · ${order.customer_phone}</div>
+          <div style="font-size:12px;color:var(--text-muted)">${order.date} ${order.time}</div>
         </div>
-        <div style="display:flex;gap:6px">
-          ${createBadge(order.delivery_status)}
-          ${createBadge(order.payment_status)}
+        <div class="accordion-right">
+          <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
+            <div style="display:flex;gap:4px">
+              ${createBadge(order.delivery_status)}
+              ${createBadge(order.payment_status)}
+            </div>
+            <div style="font-weight:700;color:var(--text)">${formatCurrency(order.total)}</div>
+          </div>
+          <i class="ri-arrow-down-s-line accordion-toggle-icon"></i>
         </div>
       </div>
-      <div class="order-customer"><i class="ri-user-line"></i> ${order.customer_name} · ${order.customer_phone}</div>
-      ${order.notes ? `<div style="font-size:12px;color:var(--danger);margin-bottom:8px;padding:6px 10px;background:rgba(239,68,68,0.08);border-radius:6px;border-left:3px solid var(--danger)"><i class="ri-sticky-note-line"></i> ${order.notes}</div>` : ""}
-      <div class="order-items-list">
-        ${buildItemRows(order)}
-      </div>
-      <div class="order-footer">
-        <div class="order-total">${formatCurrency(order.total)}${order.discount ? ` <span style="font-size:12px;color:var(--accent)">(Disc: ${order.discount})</span>` : ""}${order.payment_status === "Partial" ? ` <span style="font-size:12px;color:var(--text-muted)">(Paid: ${formatCurrency(order.paid_amount || 0)}, Due: ${formatCurrency(order.due_amount || 0)})</span>` : ""}</div>
-        <div class="order-actions">
-          ${order.delivery_status === "Pending" ? `<button class="btn btn-warning" onclick="quickUpdate('${id}','Dispatched')"><i class="ri-truck-line"></i> Dispatch</button>` : ""}
-          ${order.delivery_status === "Dispatched" ? `<button class="btn btn-info" onclick="quickUpdate('${id}','Delivered')"><i class="ri-check-line"></i> Delivered</button>` : ""}
-          ${order.delivery_status === "Delivered" ? `<button class="btn btn-danger" onclick="openReturnModal('${id}')"><i class="ri-arrow-go-back-line"></i> Return</button>` : ""}
-          ${order.payment_status !== "Paid" ? `<button class="btn btn-success" onclick="openPaymentModal('${id}')"><i class="ri-money-dollar-circle-line"></i> Mark Paid</button>` : ""}
-          <button class="btn btn-ghost" onclick="openUpdateModal('${id}')"><i class="ri-edit-line"></i> Update</button>
+      <div class="order-accordion-body">
+        ${noteHtml}
+        <div style="margin-top:12px;margin-bottom:12px">
+          ${buildItemRows(order)}
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding-top:12px;border-top:1px dashed var(--border)">
+          <div style="font-size:13px;color:var(--text-muted)">
+            ${order.discount ? `Disc: <span style="color:var(--accent)">${order.discount}</span>` : ""}
+            ${order.payment_status === "Partial" ? ` | Paid: ${formatCurrency(order.paid_amount || 0)} | Due: ${formatCurrency(order.due_amount || 0)}` : ""}
+          </div>
+          <div class="order-actions">
+            ${order.delivery_status === "Pending" ? `<button class="btn btn-warning" onclick="quickUpdate('${id}','Dispatched')"><i class="ri-truck-line"></i> Dispatch</button>` : ""}
+            ${order.delivery_status === "Dispatched" ? `<button class="btn btn-info" onclick="quickUpdate('${id}','Delivered')"><i class="ri-check-line"></i> Delivered</button>` : ""}
+            ${order.delivery_status === "Delivered" ? `<button class="btn btn-danger" onclick="openReturnModal('${id}')"><i class="ri-arrow-go-back-line"></i> Return</button>` : ""}
+            ${order.payment_status !== "Paid" ? `<button class="btn btn-success" onclick="openPaymentModal('${id}')"><i class="ri-money-dollar-circle-line"></i> Mark Paid</button>` : ""}
+            <button class="btn btn-ghost" onclick="openUpdateModal('${id}')"><i class="ri-edit-line"></i> Update</button>
+          </div>
         </div>
       </div>
     `;

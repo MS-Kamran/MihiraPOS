@@ -26,8 +26,13 @@
             <button class="tab-btn" data-status="Returned">Returned</button>
         </div>
 
-        <div class="controls">
-            <div class="search-box"><i class="ri-search-line"></i><input type="text" id="searchOrders" placeholder="Search order ID, customer..."></div>
+        <div class="controls" style="display: flex; gap: 12px; flex-wrap: wrap;">
+            <div class="search-box" style="flex: 1; min-width: 200px;"><i class="ri-search-line"></i><input type="text" id="searchOrders" placeholder="Search phone, name, order ID..."></div>
+            <div style="display: flex; gap: 8px; align-items: center;">
+                <input type="date" id="dateFrom" class="form-input" style="padding: 10px; height: 42px;">
+                <span style="color: var(--text-muted)">to</span>
+                <input type="date" id="dateTo" class="form-input" style="padding: 10px; height: 42px;">
+            </div>
         </div>
 
         <div id="loading" class="loading-state"><div class="spinner"></div><p>Loading orders...</p></div>

@@ -82,11 +82,15 @@ function parseOrderDate(dateStr) {
 
 function refresh() {
   const data = getFilteredOrders();
-  renderKPIs(data);
-  renderMonthlyChart(data);
-  renderWeeklyChart(data);
-  renderTopProducts(data);
-  renderColorsChart(data);
+  const validSalesData = data.filter(r => r.delivery_status !== "Returned");
+
+  renderKPIs(validSalesData);
+  renderMonthlyChart(validSalesData);
+  renderWeeklyChart(validSalesData);
+  renderTopProducts(validSalesData);
+  renderColorsChart(validSalesData);
+  
+  // Delivery and Payment charts still show all orders to reflect the pipeline
   renderDeliveryChart(data);
   renderPaymentChart(data);
 }

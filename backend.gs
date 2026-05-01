@@ -368,23 +368,9 @@ function handleProcessReturn(payload) {
   // Update order delivery status to Returned
   markOrderReturned(orderId);
 
-  // Full return: decrement SOLD to restore stock
+  // Full return: do not restock, just return success
   if (brokenCount === 0) {
-    var invSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(INVENTORY_SHEET);
-    var invData = invSheet.getDataRange().getValues();
-    var invHeaders = invData[0];
-    var serialIdx = invHeaders.indexOf("SERIAL");
-    var soldIdx = invHeaders.indexOf("SOLD");
-    if (serialIdx !== -1 && soldIdx !== -1) {
-      for (var i = 1; i < invData.length; i++) {
-        if (String(invData[i][serialIdx]) === serial) {
-          var currentSold = parseInt(invData[i][soldIdx]) || 0;
-          invSheet.getRange(i + 1, soldIdx + 1).setValue(Math.max(0, currentSold - 1));
-          break;
-        }
-      }
-    }
-    return createJsonResponse({ success: true, return_id: returnId, type: "full", message: "Product restocked" });
+    return createJsonResponse({ success: true, return_id: returnId, type: "full", message: "Return logged (not restocked)" });
   }
 
   // Damaged return: check if rebuild is now possible
