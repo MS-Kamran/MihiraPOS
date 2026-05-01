@@ -211,7 +211,7 @@ function renderOrders() {
       </div>
       <div class="order-accordion-body">
         ${noteHtml}
-        <div style="margin-top:12px;margin-bottom:12px">
+        <div style="margin-top:12px;margin-bottom:12px;max-height:240px;overflow-y:auto;padding-right:8px;" class="custom-scrollbar">
           ${buildItemRows(order)}
         </div>
         <div style="display:flex;justify-content:space-between;align-items:center;padding-top:12px;border-top:1px dashed var(--border)">
