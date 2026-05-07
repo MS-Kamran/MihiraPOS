@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Orders — Mihira</title>
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="style.css?v=4">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
 </head>
@@ -45,6 +45,51 @@
                 <span id="returnsCount" class="badge badge-default">0</span>
             </div>
             <div id="returns-list" style="display:flex;flex-direction:column;gap:10px"></div>
+        </div>
+    </div>
+
+    <!-- Order Detail Modal -->
+    <div class="modal-overlay" id="orderDetailModal">
+        <div class="modal" style="max-width:640px;max-height:90vh;">
+            <div class="modal-header">
+                <div>
+                    <h2 id="detailOrderId" style="font-size:18px;font-weight:700;"></h2>
+                    <div id="detailOrderMeta" style="font-size:12px;color:var(--text-muted);margin-top:2px;"></div>
+                </div>
+                <button class="btn-icon" onclick="closeOrderDetail()"><i class="ri-close-line"></i></button>
+            </div>
+            <div class="modal-body" style="gap:16px;">
+                <!-- Customer & Status -->
+                <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+                    <div id="detailCustomerInfo" style="font-size:13px;"></div>
+                    <div id="detailBadges" style="display:flex;gap:6px;"></div>
+                </div>
+
+                <!-- Order Items -->
+                <div style="border-top:1px solid var(--border);padding-top:12px;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+                        <h3 style="font-size:13px;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);">Items</h3>
+                    </div>
+                    <div id="detailItemsList" style="display:flex;flex-direction:column;gap:8px;max-height:300px;overflow-y:auto;" class="custom-scrollbar"></div>
+                </div>
+
+                <!-- Notes -->
+                <div id="detailNotesSection" style="display:none;border-top:1px solid var(--border);padding-top:12px;">
+                    <div id="detailNotes" style="font-size:12px;color:var(--danger);padding:8px 12px;background:rgba(239,68,68,0.08);border-radius:6px;border-left:3px solid var(--danger)"></div>
+                </div>
+
+                <!-- Financial Summary -->
+                <div style="border-top:1px solid var(--border);padding-top:12px;">
+                    <div style="background:rgba(0,0,0,0.2);padding:14px;border-radius:8px;">
+                        <div id="detailFinancials" style="display:flex;flex-direction:column;gap:6px;font-size:13px;"></div>
+                    </div>
+                </div>
+
+                <!-- Actions -->
+                <div style="border-top:1px solid var(--border);padding-top:12px;">
+                    <div id="detailActions" class="order-actions" style="display:flex;gap:8px;flex-wrap:wrap;justify-content:stretch;"></div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -119,16 +164,39 @@
                 <input type="hidden" id="returnColor">
                 <input type="hidden" id="returnSize">
                 <div id="returnItemInfo" style="padding:12px;background:rgba(0,0,0,0.2);border-radius:8px;margin-bottom:16px;font-size:13px"></div>
-                <div class="checkout-row" style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-                    <div class="form-group">
-                        <label>Set Size (total pieces)</label>
-                        <input type="number" id="returnSetSize" value="12" min="1">
-                    </div>
-                    <div class="form-group">
-                        <label>Broken Count</label>
-                        <input type="number" id="returnBrokenCount" value="0" min="0">
+
+                <!-- Returning pieces count -->
+                <div style="display:flex; justify-content:space-between; align-items:center; background:var(--input-bg); padding:12px; border-radius:8px; border:1px solid var(--border); margin-bottom:12px;">
+                    <label style="margin:0; font-weight:600;">Returning Pieces</label>
+                    <div class="qty-control" style="background:var(--panel-solid)">
+                        <button class="qty-btn" onclick="adjustReturnQty(-1)"><i class="ri-subtract-line"></i></button>
+                        <input type="number" id="returnTotalCount" value="0" min="1" style="width:40px; text-align:center; background:transparent; border:none; padding:0; font-weight:600; font-size:16px;">
+                        <button class="qty-btn" onclick="adjustReturnQty(1)"><i class="ri-add-line"></i></button>
                     </div>
                 </div>
+
+                <!-- Only ask for damaged pieces -->
+                <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(239,68,68,0.06); padding:12px; border-radius:8px; border:1px solid rgba(239,68,68,0.2); margin-bottom:12px;">
+                    <label style="margin:0; font-weight:600; color:#f87171;">Damaged Pieces</label>
+                    <div class="qty-control" style="background:var(--panel-solid)">
+                        <button class="qty-btn" onclick="adjustDamagedQty(-1)"><i class="ri-subtract-line"></i></button>
+                        <input type="number" id="returnBrokenCount" value="0" min="0" style="width:40px; text-align:center; background:transparent; border:none; padding:0; font-weight:600; font-size:16px; color:#f87171;">
+                        <button class="qty-btn" onclick="adjustDamagedQty(1)"><i class="ri-add-line"></i></button>
+                    </div>
+                </div>
+
+                <!-- Auto-calculated summary -->
+                <div id="returnCalcSummary" style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:12px;">
+                    <div style="padding:10px; background:rgba(16,185,129,0.08); border-radius:8px; text-align:center;">
+                        <div style="font-size:11px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.5px;">Good (Back to Stock)</div>
+                        <div id="returnGoodDisplay" style="font-size:20px; font-weight:700; color:#34d399;">0</div>
+                    </div>
+                    <div style="padding:10px; background:rgba(239,68,68,0.08); border-radius:8px; text-align:center;">
+                        <div style="font-size:11px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.5px;">Damaged</div>
+                        <div id="returnDamagedDisplay" style="font-size:20px; font-weight:700; color:#f87171;">0</div>
+                    </div>
+                </div>
+
                 <div class="form-group">
                     <label>Notes (optional)</label>
                     <input type="text" id="returnNotes" placeholder="Damage details...">
@@ -155,7 +223,7 @@
     </div>
 
     <script>window.APP_CONFIG={API_URL:"https://script.google.com/macros/s/AKfycbwQQrxrQ2A2XuH82kkXM69fX8uskeY93yjos1-AJzKHLhAc682fCLGajURcIlf2tw0M/exec"};</script>
-    <script src="shared.js"></script>
-    <script src="orders.js"></script>
+    <script src="shared.js?v=4"></script>
+    <script src="orders.js?v=4"></script>
 </body>
 </html>

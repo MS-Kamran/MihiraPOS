@@ -122,6 +122,8 @@ select option{background:var(--bg)}
 .btn-danger:hover{filter:brightness(1.1)}
 .btn-ghost{background:transparent;color:var(--text-muted);border:1px solid var(--border)}
 .btn-ghost:hover{color:var(--text);border-color:var(--text-muted)}
+.btn-info{background:var(--info);color:#fff}
+.btn-info:hover{filter:brightness(1.1)}
 .btn-icon{width:36px;height:36px;padding:0;background:transparent;color:var(--text-muted);border:none;border-radius:var(--radius-sm);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:var(--transition)}
 .btn-icon:hover{background:rgba(255,255,255,0.08);color:var(--text)}
 .btn-icon.danger:hover{color:var(--danger);background:rgba(239,68,68,0.1)}
@@ -427,6 +429,7 @@ select option{background:var(--bg)}
     margin-bottom: 12px;
     overflow: hidden;
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    flex-shrink: 0;
 }
 .order-accordion:hover {
     border-color: rgba(255, 255, 255, 0.2);
@@ -520,4 +523,82 @@ select option{background:var(--bg)}
 }
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
     background: rgba(255, 255, 255, 0.2);
+}
+
+/* ─── Skeleton Loaders ─── */
+.skeleton {
+    background: linear-gradient(90deg, rgba(255,255,255,0.05) 25%, rgba(255,255,255,0.1) 50%, rgba(255,255,255,0.05) 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+    border-radius: var(--radius-sm);
+}
+@keyframes shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+.skeleton-card {
+    padding: 12px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.skeleton-img { height: 120px; width: 100%; }
+.skeleton-text { height: 14px; width: 80%; }
+.skeleton-text.short { width: 50%; }
+
+/* ─── Horizontal Pill Filters ─── */
+.pill-filters {
+    display: flex;
+    overflow-x: auto;
+    gap: 8px;
+    padding-bottom: 4px;
+    -webkit-overflow-scrolling: touch;
+}
+.pill-filters::-webkit-scrollbar { display: none; }
+.pill-filter {
+    padding: 6px 16px;
+    background: var(--input-bg);
+    border: 1px solid var(--input-border);
+    border-radius: 20px;
+    font-size: 12px;
+    color: var(--text-muted);
+    white-space: nowrap;
+    cursor: pointer;
+    transition: var(--transition);
+}
+.pill-filter.active, .pill-filter:hover {
+    background: rgba(59,130,246,0.15);
+    color: var(--primary);
+    border-color: var(--primary);
+}
+
+/* ─── Quick Add Button ─── */
+.quick-add-btn {
+    position: absolute;
+    bottom: 8px;
+    right: 8px;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: var(--primary);
+    color: #fff;
+    border: none;
+    font-size: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    opacity: 0.9;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    transition: transform 0.2s;
+}
+.quick-add-btn:active {
+    transform: scale(0.9);
+}
+.product-img-wrapper {
+    position: relative;
+    width: 100%;
 }

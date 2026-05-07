@@ -69,6 +69,7 @@ function groupOrders() {
         time: row.time,
         customer_name: row.customer_name,
         customer_phone: row.customer_phone,
+        customer_address: row.customer_address || "",
         delivery_status: row.delivery_status || "Pending",
         payment_status: row.payment_status || "Unpaid",
         notes: row.notes || "",
@@ -95,10 +96,9 @@ function groupOrders() {
   });
 }
 
-// Toggle accordion open/close
+// Open Order Detail Popup
 window.toggleAccordion = function(orderId) {
-  const el = document.getElementById(`acc-${orderId}`);
-  if (el) el.classList.toggle("open");
+  openOrderDetail(orderId);
 };
 
 // Find matching product image from inventory cache
@@ -110,30 +110,45 @@ function getProductImage(serial, name, color) {
   return "";
 }
 
+// Safely convert API field values to string — handles objects, arrays, nulls
+function safeStr(val) {
+  if (val === null || val === undefined) return "";
+  if (typeof val === 'object') return JSON.stringify(val);
+  return String(val);
+}
+
 // Parse comma-separated item fields from a consolidated order row and build cards with images
 function buildItemRows(order) {
   const firstRow = order.rows[0];
-  const serials = String(firstRow.serial || "").split(",").map(s => s.trim());
-  const categories = String(firstRow.category || "").split(",").map(s => s.trim());
-  const colors = String(firstRow.color || "").split(",").map(s => s.trim());
-  const sizes = String(firstRow.size || "").split(",").map(s => s.trim());
-  const quantities = String(firstRow.quantity || "").split(",").map(s => s.trim());
+  const serials = safeStr(firstRow.serial).split(",").map(s => s.trim());
+  const categories = safeStr(firstRow.category).split(",").map(s => s.trim());
+  const colors = safeStr(firstRow.color).split(",").map(s => s.trim());
+  const sizes = safeStr(firstRow.size).split(",").map(s => s.trim());
+  const quantities = safeStr(firstRow.quantity).split(",").map(s => s.trim());
+  const unitPrices = safeStr(firstRow.unit_price).split(",").map(s => s.trim());
 
   return serials.map((serial, idx) => {
     const category = categories[idx] || categories[0] || "Product";
     const color = colors[idx] || colors[0] || "-";
     const size = sizes[idx] || sizes[0] || "-";
     const qty = quantities[idx] || quantities[0] || "1";
+    const uPrice = unitPrices[idx] || unitPrices[0] || "0";
     const imgUrl = getProductImage(serial, category, color);
 
     return `
-      <div class="order-item-card">
-        ${imgUrl ? `<img src="${imgUrl}" class="order-item-img" referrerpolicy="no-referrer">` : `<div class="order-item-img"></div>`}
-        <div class="order-item-info">
-          <div class="order-item-title">${category}</div>
-          <div class="order-item-meta">${color} · Size ${size} · Serial: ${serial}</div>
+      <div class="order-item-card" style="display:flex; justify-content:space-between; align-items:center;">
+        <div style="display:flex; gap:12px; align-items:center;">
+          ${imgUrl ? `<img src="${imgUrl}" class="order-item-img" referrerpolicy="no-referrer">` : `<div class="order-item-img"></div>`}
+          <div class="order-item-info">
+            <div class="order-item-title">${category}</div>
+            <div class="order-item-meta">${color} · Size ${size} · Serial: ${serial}</div>
+            <div class="order-item-meta" style="font-weight:600;color:var(--text);margin-top:4px;">× ${qty} (৳${uPrice}/ea)</div>
+          </div>
         </div>
-        <div style="font-weight:600;font-size:14px">× ${qty}</div>
+        ${order.delivery_status !== "Returned" && order.delivery_status !== "Pending" ? 
+          `<button class="btn-icon danger" onclick="openReturnModal('${order.order_id}', '${serial}', '${category.replace(/'/g,"\\'").replace(/"/g,'&quot;')}', '${color}', '${size}', '${uPrice}', '${qty}')" title="Return Item">
+             <i class="ri-arrow-go-back-line"></i>
+           </button>` : ''}
       </div>
     `;
   }).join("");
@@ -187,16 +202,20 @@ function renderOrders() {
     }
 
     const noteHtml = order.notes ? `<div style="font-size:12px;color:var(--danger);margin-top:8px;padding:6px 10px;background:rgba(239,68,68,0.08);border-radius:6px;border-left:3px solid var(--danger)"><i class="ri-sticky-note-line"></i> ${order.notes}</div>` : "";
-    
+
+    const itemCount = String(order.rows[0]?.serial || "").split(",").filter(s => s.trim()).length;
+
     const card = document.createElement("div");
     card.className = "order-accordion";
-    card.id = `acc-${id}`;
+    card.style.cursor = "pointer";
+    card.onclick = () => openOrderDetail(id);
     card.innerHTML = `
-      <div class="order-accordion-header" onclick="toggleAccordion('${id}')">
+      <div class="order-accordion-header" style="cursor:pointer;">
         <div class="accordion-left">
           <div style="font-weight:600;color:var(--text)">${order.order_id}</div>
-          <div style="font-size:12px;color:var(--text-muted)"><i class="ri-user-line"></i> ${order.customer_name} · ${order.customer_phone}</div>
-          <div style="font-size:12px;color:var(--text-muted)">${cleanDate} · ${cleanTime}</div>
+          <div style="font-size:12px;color:var(--text-muted)"><i class="ri-user-line"></i> ${order.customer_name} · ${order.customer_phone}${order.customer_address ? ' · ' + order.customer_address : ''}</div>
+          <div style="font-size:12px;color:var(--text-muted)">${cleanDate} · ${cleanTime} · ${itemCount} item${itemCount > 1 ? 's' : ''}</div>
+          ${noteHtml}
         </div>
         <div class="accordion-right">
           <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
@@ -205,32 +224,9 @@ function renderOrders() {
               ${createBadge(order.payment_status)}
             </div>
             <div style="font-weight:700;color:var(--text)">${formatCurrency(order.total)}</div>
+            ${order.payment_status === "Partial" ? `<div style="font-size:11px;color:var(--danger)">Due: ${formatCurrency(order.due_amount || 0)}</div>` : ""}
           </div>
-          <i class="ri-arrow-down-s-line accordion-toggle-icon"></i>
-        </div>
-      </div>
-      <div class="order-accordion-body">
-        ${noteHtml}
-        <div style="display:flex;justify-content:space-between;align-items:center;padding-bottom:12px;margin-bottom:12px;border-bottom:1px dashed var(--border)">
-          <div style="font-size:13px;color:var(--text-muted)">
-            <strong>Actions</strong>
-          </div>
-          <div class="order-actions">
-            ${order.delivery_status === "Pending" ? `<button class="btn btn-warning" onclick="quickUpdate('${id}','Dispatched')"><i class="ri-truck-line"></i> Dispatch</button>` : ""}
-            ${order.delivery_status === "Dispatched" ? `<button class="btn btn-info" onclick="quickUpdate('${id}','Delivered')"><i class="ri-check-line"></i> Delivered</button>` : ""}
-            ${order.delivery_status === "Delivered" ? `<button class="btn btn-danger" onclick="openReturnModal('${id}')"><i class="ri-arrow-go-back-line"></i> Return</button>` : ""}
-            ${order.payment_status !== "Paid" ? `<button class="btn btn-success" onclick="openPaymentModal('${id}')"><i class="ri-money-dollar-circle-line"></i> Mark Paid</button>` : ""}
-            <button class="btn btn-outline" style="border: 1px solid var(--border); background: transparent; color: var(--text)" onclick="openUpdateModal('${id}')"><i class="ri-settings-4-line"></i> Manual Update</button>
-          </div>
-        </div>
-        <div style="margin-top:12px;margin-bottom:12px;max-height:240px;overflow-y:auto;padding-right:8px;" class="custom-scrollbar">
-          ${buildItemRows(order)}
-        </div>
-        <div style="display:flex;justify-content:flex-end;align-items:center;padding-top:12px;border-top:1px dashed var(--border)">
-          <div style="font-size:13px;color:var(--text-muted)">
-            ${order.discount ? `Disc: <span style="color:var(--accent)">${order.discount}</span>` : ""}
-            ${order.payment_status === "Partial" ? ` | Paid: ${formatCurrency(order.paid_amount || 0)} | Due: ${formatCurrency(order.due_amount || 0)}` : ""}
-          </div>
+          <i class="ri-arrow-right-s-line" style="font-size:20px;color:var(--text-muted)"></i>
         </div>
       </div>
     `;
@@ -446,57 +442,87 @@ async function saveUpdate() {
 
 // ─── Return Management ──────────────────────────────────
 let pendingRebuild = null;
+let returnMaxQty = 0;
 
-function openReturnModal(orderId) {
+function openReturnModal(orderId, serial, name, color, size, unitPrice, qty) {
   const order = groupedOrders[orderId];
   if (!order) return;
-  const firstRow = order.rows[0];
-  const serial = String(firstRow.serial || "");
-  const name = String(firstRow.category || firstRow.name || firstRow.serial || "");
-  const color = String(firstRow.color || "");
-  const size = String(firstRow.size || "");
 
   document.getElementById("returnOrderId").value = orderId;
   document.getElementById("returnSerial").value = serial;
   document.getElementById("returnName").value = name;
   document.getElementById("returnColor").value = color;
   document.getElementById("returnSize").value = size;
+
+  let unitPriceInput = document.getElementById("returnUnitPrice");
+  if (!unitPriceInput) {
+    unitPriceInput = document.createElement("input");
+    unitPriceInput.type = "hidden";
+    unitPriceInput.id = "returnUnitPrice";
+    document.querySelector("#returnModal .modal-body").appendChild(unitPriceInput);
+  }
+  unitPriceInput.value = unitPrice;
+
+  returnMaxQty = parseInt(qty) || 0;
+  document.getElementById("returnTotalCount").value = returnMaxQty;
   document.getElementById("returnBrokenCount").value = "0";
   document.getElementById("returnNotes").value = "";
   document.getElementById("returnPreview").style.display = "none";
 
   document.getElementById("returnItemInfo").innerHTML = `
     <strong>${orderId}</strong> — ${name} · ${color} · Size ${size}<br>
-    <span style="color:var(--text-muted)">Customer: ${order.customer_name} · ${order.customer_phone}</span>
+    <span style="color:var(--text-muted)">Customer: ${order.customer_name} · ${order.customer_phone}${order.customer_address ? ' · ' + order.customer_address : ''}</span><br>
+    <span style="color:var(--accent);font-weight:600">Unit Price: ৳${unitPrice}</span>
   `;
 
-  // Live preview
-  const brokenInput = document.getElementById("returnBrokenCount");
-  const setSizeInput = document.getElementById("returnSetSize");
-  const updatePreview = () => {
-    const setSize = parseInt(setSizeInput.value) || 12;
-    const broken = parseInt(brokenInput.value) || 0;
-    const preview = document.getElementById("returnPreview");
-    if (broken === 0) {
-      preview.style.display = "block";
-      preview.style.background = "rgba(16,185,129,0.1)";
-      preview.style.color = "#34d399";
-      preview.innerHTML = "<strong>Full Return</strong> — Product will be restocked automatically";
-    } else if (broken > 0 && broken <= setSize) {
-      preview.style.display = "block";
-      preview.style.background = "rgba(245,158,11,0.1)";
-      preview.style.color = "#fbbf24";
-      preview.innerHTML = `<strong>Damaged Return</strong> — ${setSize - broken} good pieces will be saved as spares`;
-    } else {
-      preview.style.display = "none";
-    }
-  };
-  brokenInput.oninput = updatePreview;
-  setSizeInput.oninput = updatePreview;
-  updatePreview();
-
+  updateReturnPreview();
   document.getElementById("returnModal").classList.add("open");
 }
+
+function adjustReturnQty(delta) {
+  const input = document.getElementById("returnTotalCount");
+  const newVal = Math.max(1, Math.min(returnMaxQty, (parseInt(input.value) || 0) + delta));
+  input.value = newVal;
+  // Ensure damaged doesn't exceed total
+  const brokenInput = document.getElementById("returnBrokenCount");
+  if (parseInt(brokenInput.value) > newVal) brokenInput.value = newVal;
+  updateReturnPreview();
+}
+
+function adjustDamagedQty(delta) {
+  const totalCount = parseInt(document.getElementById("returnTotalCount").value) || 0;
+  const input = document.getElementById("returnBrokenCount");
+  const newVal = Math.max(0, Math.min(totalCount, (parseInt(input.value) || 0) + delta));
+  input.value = newVal;
+  updateReturnPreview();
+}
+
+function updateReturnPreview() {
+  const totalReturning = parseInt(document.getElementById("returnTotalCount").value) || 0;
+  const broken = parseInt(document.getElementById("returnBrokenCount").value) || 0;
+  const good = Math.max(0, totalReturning - broken);
+  const unitPrice = parseFloat(document.getElementById("returnUnitPrice")?.value) || 0;
+  const preview = document.getElementById("returnPreview");
+
+  document.getElementById("returnGoodDisplay").textContent = good;
+  document.getElementById("returnDamagedDisplay").textContent = broken;
+
+  if (totalReturning > 0) {
+    preview.style.display = "block";
+    preview.style.background = "rgba(59, 130, 246, 0.1)";
+    preview.style.color = "#3b82f6";
+    preview.innerHTML = `<strong>Refund: ৳${totalReturning * unitPrice}</strong> — ${good} good + ${broken} damaged`;
+    document.getElementById("confirmReturnBtn").disabled = false;
+  } else {
+    preview.style.display = "none";
+    document.getElementById("confirmReturnBtn").disabled = true;
+  }
+
+  // Wire live input events
+  document.getElementById("returnTotalCount").oninput = () => { adjustReturnQty(0); };
+  document.getElementById("returnBrokenCount").oninput = () => { adjustDamagedQty(0); };
+}
+
 
 function closeReturnModal() {
   document.getElementById("returnModal").classList.remove("open");
@@ -507,14 +533,19 @@ async function confirmReturn() {
   btn.disabled = true;
   btn.innerHTML = '<div class="spinner" style="width:18px;height:18px;margin:0 auto"></div>';
 
+  const totalReturning = parseInt(document.getElementById("returnTotalCount").value) || 0;
+  const brokenCount = parseInt(document.getElementById("returnBrokenCount").value) || 0;
+  const goodCount = Math.max(0, totalReturning - brokenCount);
+
   const payload = {
     order_id: document.getElementById("returnOrderId").value,
     serial: document.getElementById("returnSerial").value,
     name: document.getElementById("returnName").value,
     color: document.getElementById("returnColor").value,
     size: document.getElementById("returnSize").value,
-    set_size: parseInt(document.getElementById("returnSetSize").value) || 12,
-    broken_count: parseInt(document.getElementById("returnBrokenCount").value) || 0,
+    unit_price: parseFloat(document.getElementById("returnUnitPrice").value) || 0,
+    good_count: goodCount,
+    broken_count: brokenCount,
     notes: document.getElementById("returnNotes").value,
   };
 
@@ -522,17 +553,19 @@ async function confirmReturn() {
     const result = await Api.processReturn(payload);
     if (!result.success) throw new Error(result.error || "Return failed");
 
-    if (result.type === "full") {
-      showToast("Full return processed — product restocked!", "success");
+    if (brokenCount === 0) {
+      showToast("Return processed — All pieces restocked", "success");
     } else {
-      showToast(`Damaged return processed — ${result.spare_pieces} pieces saved as spares`, "info");
-      if (result.can_rebuild) {
-        showRebuildBanner(payload.name, payload.color, payload.size, payload.set_size, result.available_pieces);
-      }
+      showToast(`Return processed — ${goodCount} restocked, ${brokenCount} damaged`, "warning");
     }
 
     closeReturnModal();
     await loadOrders();
+
+    try {
+        inventory = await Api.getInventory();
+    } catch(e) {}
+
   } catch (err) {
     showToast(err.message || "Return failed", "error");
   } finally {
@@ -541,26 +574,199 @@ async function confirmReturn() {
   }
 }
 
-function showRebuildBanner(name, color, size, setSize, availablePieces) {
-  pendingRebuild = { name, color, size, set_size: setSize };
-  document.getElementById("rebuildInfo").textContent =
-    `${availablePieces} spare pieces of ${name} ${color} Size ${size} available — enough to rebuild a full set of ${setSize}!`;
-  document.getElementById("rebuildBanner").style.display = "block";
+// ─── Automated Invoice Printing ───────────────────────
+function printOrder(id) {
+  const order = groupedOrders[id];
+  if (!order) return;
+
+  const printWindow = window.open('', '_blank');
+  
+  let itemsHtml = '';
+  order.rows.forEach(row => {
+    const qty = parseInt(row.quantity) || 1;
+    const price = parseFloat(row.unit_price) || 0;
+    itemsHtml += `
+      <tr>
+        <td style="padding: 8px; border-bottom: 1px solid #ddd;">${row.category} - ${row.color} (Size ${row.size})</td>
+        <td style="padding: 8px; border-bottom: 1px solid #ddd; text-align: center;">${qty}</td>
+        <td style="padding: 8px; border-bottom: 1px solid #ddd; text-align: right;">৳${price * qty}</td>
+      </tr>
+    `;
+  });
+
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>Invoice ${order.order_id}</title>
+      <style>
+        body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; padding: 20px; color: #000; }
+        .header { text-align: center; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 20px; }
+        .header h1 { margin: 0; font-size: 24px; letter-spacing: 2px; }
+        .details { margin-bottom: 20px; font-size: 14px; }
+        .details strong { width: 100px; display: inline-block; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 14px; }
+        th { background: #f5f5f5; padding: 10px 8px; text-align: left; border-bottom: 2px solid #000; }
+        .totals { float: right; width: 300px; font-size: 14px; }
+        .totals-row { display: flex; justify-content: space-between; padding: 4px 0; }
+        .totals-row.grand { font-size: 18px; font-weight: bold; border-top: 2px solid #000; padding-top: 8px; }
+      </style>
+    </head>
+    <body onload="window.print(); window.close();">
+      <div class="header">
+        <h1>MIHIRA</h1>
+        <p style="margin: 4px 0 0; font-size: 12px; color: #555;">Point of Sale Receipt</p>
+      </div>
+      
+      <div class="details">
+        <p><strong>Order ID:</strong> ${order.order_id}</p>
+        <p><strong>Date:</strong> ${order.date} ${order.time}</p>
+        <p><strong>Customer:</strong> ${order.customer_name}</p>
+        <p><strong>Phone:</strong> ${order.customer_phone}</p>
+        ${order.customer_address ? `<p><strong>Address:</strong> ${order.customer_address}</p>` : ''}
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Item</th>
+            <th style="text-align: center;">Qty</th>
+            <th style="text-align: right;">Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${itemsHtml}
+        </tbody>
+      </table>
+
+      <div class="totals">
+        ${order.discount ? `<div class="totals-row"><span>Discount:</span><span>${order.discount}</span></div>` : ''}
+        <div class="totals-row grand"><span>Total:</span><span>৳${order.total}</span></div>
+        <div class="totals-row"><span>Paid:</span><span>৳${order.paid_amount || 0}</span></div>
+        <div class="totals-row"><span>Due:</span><span>৳${order.due_amount || 0}</span></div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  printWindow.document.write(html);
+  printWindow.document.close();
 }
 
-function dismissRebuild() {
-  document.getElementById("rebuildBanner").style.display = "none";
-  pendingRebuild = null;
-}
+// ─── Order Detail Popup ─────────────────────────────────
+function openOrderDetail(orderId) {
+  const order = groupedOrders[orderId];
+  if (!order) return;
 
-async function executeRebuild() {
-  if (!pendingRebuild) return;
-  try {
-    const result = await Api.executeRebuild(pendingRebuild);
-    if (!result.success) throw new Error(result.error || "Rebuild failed");
-    showToast(result.message, "success");
-    dismissRebuild();
-  } catch (err) {
-    showToast(err.message || "Rebuild failed", "error");
+  const cleanDate = new Date(order.date).toLocaleDateString('en-GB') !== 'Invalid Date'
+    ? new Date(order.date).toLocaleDateString('en-GB') : order.date;
+  let cleanTime = order.time;
+  if (String(order.time).includes('T')) {
+    const timeObj = new Date(order.time);
+    if (!isNaN(timeObj.getTime())) {
+      cleanTime = timeObj.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+    }
   }
+
+  document.getElementById("detailOrderId").textContent = order.order_id;
+  document.getElementById("detailOrderMeta").textContent = `${cleanDate} · ${cleanTime}`;
+  document.getElementById("detailCustomerInfo").innerHTML = `
+    <i class="ri-user-line"></i> <strong>${order.customer_name}</strong> · ${order.customer_phone}
+    ${order.customer_address ? `<br><i class="ri-map-pin-line"></i> ${order.customer_address}` : ''}
+  `;
+  document.getElementById("detailBadges").innerHTML = createBadge(order.delivery_status) + createBadge(order.payment_status);
+
+  // Build item cards
+  document.getElementById("detailItemsList").innerHTML = buildDetailItemCards(order);
+
+  // Notes
+  const notesSection = document.getElementById("detailNotesSection");
+  if (order.notes) {
+    notesSection.style.display = "block";
+    document.getElementById("detailNotes").innerHTML = `<i class="ri-sticky-note-line"></i> ${order.notes}`;
+  } else {
+    notesSection.style.display = "none";
+  }
+
+  // Financials
+  const paidAmt = order.paid_amount || 0;
+  const dueAmt = order.due_amount || (order.total - paidAmt);
+  document.getElementById("detailFinancials").innerHTML = `
+    ${order.discount ? `<div style="display:flex;justify-content:space-between;"><span>Discount</span><span style="color:var(--accent)">${order.discount}</span></div>` : ""}
+    ${order.payment_status === "Partial" ? `
+      <div style="display:flex;justify-content:space-between;"><span>Paid</span><span style="color:var(--accent)">${formatCurrency(paidAmt)}</span></div>
+      <div style="display:flex;justify-content:space-between;"><span>Due</span><span style="color:var(--danger)">${formatCurrency(dueAmt)}</span></div>
+    ` : ""}
+    <div style="display:flex;justify-content:space-between;padding-top:6px;border-top:1px solid rgba(255,255,255,0.08);font-size:18px;font-weight:700;">
+      <span>Total</span><span>${formatCurrency(order.total)}</span>
+    </div>
+  `;
+
+  // Actions
+  const id = order.order_id;
+  let actionsHtml = `<button class="btn btn-outline" style="flex:1;border:1px solid var(--border);background:transparent;color:var(--text)" onclick="closeOrderDetail();printOrder('${id}')"><i class="ri-printer-line"></i> Print</button>`;
+  if (order.delivery_status === "Pending") {
+    actionsHtml += `<button class="btn btn-warning" style="flex:1" onclick="closeOrderDetail();quickUpdate('${id}','Dispatched')"><i class="ri-truck-line"></i> Dispatch</button>`;
+  }
+  if (order.delivery_status === "Dispatched") {
+    actionsHtml += `<button class="btn btn-info" style="flex:1" onclick="closeOrderDetail();quickUpdate('${id}','Delivered')"><i class="ri-check-line"></i> Delivered</button>`;
+  }
+  if (order.payment_status !== "Paid") {
+    actionsHtml += `<button class="btn btn-success" style="flex:1" onclick="closeOrderDetail();openPaymentModal('${id}')"><i class="ri-money-dollar-circle-line"></i> Pay</button>`;
+  }
+  actionsHtml += `<button class="btn btn-outline" style="flex:1;border:1px solid var(--border);background:transparent;color:var(--text)" onclick="closeOrderDetail();openUpdateModal('${id}')"><i class="ri-settings-4-line"></i> Update</button>`;
+  document.getElementById("detailActions").innerHTML = actionsHtml;
+
+  document.getElementById("orderDetailModal").classList.add("open");
 }
+
+function closeOrderDetail() {
+  document.getElementById("orderDetailModal").classList.remove("open");
+}
+
+function buildDetailItemCards(order) {
+  const firstRow = order.rows[0];
+  const serials = safeStr(firstRow.serial).split(",").map(s => s.trim());
+  const categories = safeStr(firstRow.category).split(",").map(s => s.trim());
+  const colors = safeStr(firstRow.color).split(",").map(s => s.trim());
+  const sizes = safeStr(firstRow.size).split(",").map(s => s.trim());
+  const quantities = safeStr(firstRow.quantity).split(",").map(s => s.trim());
+  const unitPrices = safeStr(firstRow.unit_price).split(",").map(s => s.trim());
+
+  return serials.map((serial, idx) => {
+    const category = categories[idx] || categories[0] || "Product";
+    const color = colors[idx] || colors[0] || "-";
+    const size = sizes[idx] || sizes[0] || "-";
+    const qty = quantities[idx] || quantities[0] || "1";
+    const uPrice = unitPrices[idx] || unitPrices[0] || "0";
+    const imgUrl = getProductImage(serial, category, color);
+    const lineTotal = parseFloat(uPrice) * parseInt(qty);
+
+    const canReturn = order.delivery_status !== "Returned" && order.delivery_status !== "Pending";
+    return `
+      <div class="order-item-card" style="display:flex;justify-content:space-between;align-items:center;">
+        <div style="display:flex;gap:12px;align-items:center;flex:1;min-width:0;">
+          ${imgUrl ? `<img src="${imgUrl}" class="order-item-img" referrerpolicy="no-referrer">` : `<div class="order-item-img"></div>`}
+          <div class="order-item-info" style="min-width:0;">
+            <div class="order-item-title">${category}</div>
+            <div class="order-item-meta">${color} · Size ${size} · #${serial}</div>
+            <div style="display:flex;gap:12px;margin-top:4px;font-size:12px;">
+              <span style="font-weight:600;color:var(--text);">× ${qty} pcs</span>
+              <span style="font-weight:600;color:var(--accent);">${formatCurrency(lineTotal)}</span>
+            </div>
+          </div>
+        </div>
+        ${canReturn ? `
+          <button class="btn-icon danger" onclick="closeOrderDetail();openReturnModal('${order.order_id}','${serial}','${category.replace(/'/g,"\\\\'").replace(/"/g,'&quot;')}','${color}','${size}','${uPrice}','${qty}')" title="Return Item" style="flex-shrink:0;">
+            <i class="ri-arrow-go-back-line"></i>
+          </button>` : ""}
+      </div>`;
+  }).join("");
+}
+
+// Wire modal overlay close
+document.addEventListener("DOMContentLoaded", () => {
+  document.getElementById("orderDetailModal")?.addEventListener("click", (e) => {
+    if (e.target.classList.contains("modal-overlay")) closeOrderDetail();
+  });
+});

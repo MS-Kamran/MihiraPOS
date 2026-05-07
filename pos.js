@@ -12,10 +12,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     loading: document.getElementById("loading"),
     grid: document.getElementById("product-grid"),
     searchInput: document.getElementById("searchInput"),
-    filterName: document.getElementById("filterName"),
-    filterColor: document.getElementById("filterColor"),
-    filterSize: document.getElementById("filterSize"),
-    filterStock: document.getElementById("filterStock"),
+    visualFilters: document.getElementById("visualFilters"),
     cartItems: document.getElementById("cart-items"),
     cartCount: document.getElementById("cartCount"),
     cartTotal: document.getElementById("cartTotal"),
@@ -52,15 +49,11 @@ document.addEventListener("DOMContentLoaded", async () => {
 function setupListeners() {
   const resetPageAndRender = () => { currentPage = 1; renderProducts(); };
   el.searchInput.addEventListener("input", resetPageAndRender);
-  el.filterName.addEventListener("change", resetPageAndRender);
-  el.filterColor.addEventListener("change", resetPageAndRender);
-  el.filterSize.addEventListener("change", resetPageAndRender);
-  el.filterStock.addEventListener("change", resetPageAndRender);
   el.clearCartBtn.addEventListener("click", clearCart);
   el.checkoutBtn.addEventListener("click", handleCheckout);
   el.paymentStatus.addEventListener("change", togglePartialRow);
   el.paidAmount.addEventListener("input", calcDue);
-  el.deliveryFee.addEventListener("change", recalcTotals);
+  el.deliveryFee.addEventListener("input", recalcTotals);
   el.discountType.addEventListener("change", () => {
     const isNone = el.discountType.value === "none";
     el.discountValue.style.display = isNone ? "none" : "block";
@@ -68,6 +61,10 @@ function setupListeners() {
     recalcTotals();
   });
   el.discountValue.addEventListener("input", recalcTotals);
+  if(document.getElementById("filterName")) document.getElementById("filterName").addEventListener("change", resetPageAndRender);
+  if(document.getElementById("filterColor")) document.getElementById("filterColor").addEventListener("change", resetPageAndRender);
+  if(document.getElementById("filterSize")) document.getElementById("filterSize").addEventListener("change", resetPageAndRender);
+  if(document.getElementById("filterStock")) document.getElementById("filterStock").addEventListener("change", resetPageAndRender);
 }
 
 async function loadInventory() {
@@ -90,10 +87,29 @@ async function loadInventory() {
   }
 }
 
+function populateFilters() {
+  const nameList = document.getElementById("filterName");
+  const colorList = document.getElementById("filterColor");
+  const sizeList = document.getElementById("filterSize");
+  
+  if (!nameList || !colorList || !sizeList) return;
+
+  const names = extractUniqueValues(inventory, "NAME");
+  const colors = extractUniqueValues(inventory, "COLOR");
+  const sizes = extractUniqueValues(inventory, "SIZE");
+
+  nameList.innerHTML = '<option value="all">All Designs</option>' + names.map(n => `<option value="${n}">${n}</option>`).join("");
+  colorList.innerHTML = '<option value="all">All Colors</option>' + colors.map(c => `<option value="${c}">${c}</option>`).join("");
+  sizeList.innerHTML = '<option value="all">All Sizes</option>' + sizes.map(s => `<option value="${s}">${s}</option>`).join("");
+}
+
+function extractUniqueValues(data, key) {
+  const values = data.map(i => String(i[key] || "").trim()).filter(Boolean);
+  return [...new Set(values)].sort();
+}
+
 function populateFiltersAndShow() {
-  populateDropdown(el.filterName, extractUniqueValues(inventory, "NAME"), "All Designs");
-  populateDropdown(el.filterColor, extractUniqueValues(inventory, "COLOR"), "All Colors");
-  populateDropdown(el.filterSize, extractUniqueValues(inventory, "SIZE"), "All Sizes");
+  populateFilters();
 
   // Auto-search if redirected from inventory with ?search= param
   const urlParams = new URLSearchParams(window.location.search);
@@ -109,10 +125,10 @@ function populateFiltersAndShow() {
 
 function resetFilters() {
   el.searchInput.value = "";
-  el.filterName.value = "all";
-  el.filterColor.value = "all";
-  el.filterSize.value = "all";
-  el.filterStock.value = "all";
+  if(document.getElementById("filterName")) document.getElementById("filterName").value = "all";
+  if(document.getElementById("filterColor")) document.getElementById("filterColor").value = "all";
+  if(document.getElementById("filterSize")) document.getElementById("filterSize").value = "all";
+  if(document.getElementById("filterStock")) document.getElementById("filterStock").value = "all";
   currentPage = 1;
   renderProducts();
 }
@@ -131,10 +147,10 @@ function nextPage() {
 
 function renderProducts() {
   const search = el.searchInput.value.toLowerCase();
-  const name = el.filterName.value;
-  const color = el.filterColor.value;
-  const size = el.filterSize.value;
-  const stockFilter = el.filterStock.value;
+  const nameFilter = document.getElementById("filterName") ? document.getElementById("filterName").value : "all";
+  const colorFilter = document.getElementById("filterColor") ? document.getElementById("filterColor").value : "all";
+  const sizeFilter = document.getElementById("filterSize") ? document.getElementById("filterSize").value : "all";
+  const stockFilter = document.getElementById("filterStock") ? document.getElementById("filterStock").value : "all";
 
   const filtered = inventory.filter((item) => {
     const idField = item.SERIAL || item.SKU || "";
@@ -146,7 +162,11 @@ function renderProducts() {
     else if (stockFilter === "low_stock") stockMatch = itemStock > 0 && itemStock < 5;
     else if (stockFilter === "out_of_stock") stockMatch = itemStock <= 0;
 
-    return ms && stockMatch && (name === "all" || item.NAME === name) && (color === "all" || item.COLOR === color) && (size === "all" || String(item.SIZE) === size);
+    const nameMatch = nameFilter === "all" || item.NAME === nameFilter;
+    const colorMatch = colorFilter === "all" || item.COLOR === colorFilter;
+    const sizeMatch = sizeFilter === "all" || String(item.SIZE) === sizeFilter;
+
+    return ms && stockMatch && nameMatch && colorMatch && sizeMatch;
   });
 
   el.grid.innerHTML = "";
@@ -173,7 +193,10 @@ function renderProducts() {
     const card = document.createElement("div");
     card.className = `product-card ${isOut ? "out-of-stock" : ""}`;
     card.innerHTML = `
-      <div class="product-img">${imgUrl ? `<img src="${imgUrl}" alt="${item.NAME}" referrerpolicy="no-referrer" onerror="this.parentElement.innerHTML='<i class=\\'ri-image-line\\' style=\\'font-size:28px\\'></i>'">` : '<i class="ri-image-line" style="font-size:28px"></i>'}</div>
+      <div class="product-img-wrapper">
+        <div class="product-img">${imgUrl ? `<img src="${imgUrl}" alt="${item.NAME}" referrerpolicy="no-referrer" onerror="this.parentElement.innerHTML='<i class=\\'ri-image-line\\' style=\\'font-size:28px\\'></i>'">` : '<i class="ri-image-line" style="font-size:28px"></i>'}</div>
+        ${!isOut ? `<button class="quick-add-btn" onclick="addToCartByData('${item.SERIAL || item.SKU}'); event.stopPropagation()"><i class="ri-add-line"></i></button>` : ''}
+      </div>
       <div class="product-info">
         <h3>${item.NAME}</h3>
         <div class="product-meta">
@@ -182,7 +205,7 @@ function renderProducts() {
         </div>
         <div class="product-footer">
           <span class="product-price">${formatCurrency(price)}</span>
-          <span class="stock-badge ${isOut ? "stock-out" : isLow ? "stock-low" : "stock-ok"}">${isOut ? "Out" : "Stk: " + stock}</span>
+          <span class="stock-badge ${isOut ? "stock-out" : isLow ? "stock-low" : "stock-ok"}">${isOut ? "Out" : formatStockDisplay(stock, parseInt(item["CHURI IN A SET"]) || 12)}</span>
         </div>
       </div>`;
 
@@ -198,19 +221,25 @@ function renderProducts() {
 }
 
 // ─── Cart ───────────────────────────────────────────────
+function addToCartByData(idField) {
+  const product = inventory.find((i) => String(i.SERIAL || i.SKU) === idField);
+  if (product) addToCart(product);
+}
+
 function addToCart(product) {
   const stock = getStock(product);
   const idField = String(product.SERIAL || product.SKU);
   const existing = cart.find((i) => String(i.SERIAL || i.SKU) === idField);
+  const setPieces = parseInt(product["CHURI IN A SET"]) || 1;
 
   if (existing) {
-    if (existing.cartQty >= stock) return showToast("Max stock reached", "error");
-    existing.cartQty++;
+    if (existing.cartQty + setPieces > stock) return showToast("Not enough stock for another set", "error");
+    existing.cartQty += setPieces;
   } else {
-    if (stock <= 0) return;
-    cart.push({ ...product, cartQty: 1 });
+    if (stock < setPieces) return showToast("Not enough stock", "error");
+    cart.push({ ...product, cartQty: setPieces });
   }
-  showToast(`${product.NAME} added`, "success");
+  showToast(`${product.NAME} added (${setPieces} pcs)`, "success");
   renderCart();
 }
 
@@ -246,14 +275,22 @@ function renderCart() {
   }
 
   let total = 0;
-  let count = 0;
+  let totalSets = 0;
 
   cart.forEach((item) => {
-    const price = parseFloat(item["SELLING PRICE"]) || 0;
-    const lineTotal = price * item.cartQty;
+    const setPrice = parseFloat(item["SELLING PRICE"]) || 0;
+    const setSize = parseInt(item["CHURI IN A SET"]) || 1;
+    const numberOfSets = Math.floor(item.cartQty / setSize);
+    const extraPieces = item.cartQty % setSize;
+    const lineTotal = setPrice * numberOfSets + (extraPieces > 0 ? (setPrice / setSize) * extraPieces : 0);
+
     total += lineTotal;
-    count += item.cartQty;
+    totalSets += numberOfSets;
     const imgUrl = getFirstImageUrl(item["IMAGE LINK"], item.IMAGES);
+    const idField = item.SERIAL || item.SKU;
+
+    // Display quantity as sets
+    const qtyDisplay = extraPieces > 0 ? `${numberOfSets} Set + ${extraPieces} Pcs` : `${numberOfSets} Set`;
 
     const div = document.createElement("div");
     div.className = "cart-item";
@@ -262,22 +299,42 @@ function renderCart() {
       <div class="cart-item-details">
         <h4>${item.NAME}</h4>
         <div class="cart-item-meta">${item.COLOR} · Size ${item.SIZE}</div>
+        <div class="cart-item-meta" style="color:var(--accent);font-weight:600;margin-top:2px;">৳${setPrice}/set · ${setSize} pcs/set</div>
       </div>
       <div class="cart-item-controls">
         <div class="cart-item-price">${formatCurrency(lineTotal)}</div>
-        <div class="qty-control">
-          <button class="qty-btn" onclick="updateCartQty('${item.SERIAL || item.SKU}',-1)"><i class="ri-subtract-line"></i></button>
-          <span class="qty-val">${item.cartQty}</span>
-          <button class="qty-btn" onclick="updateCartQty('${item.SERIAL || item.SKU}',1)"><i class="ri-add-line"></i></button>
+        <div style="font-size:11px;color:var(--text-muted);text-align:right;">${qtyDisplay}</div>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <div class="qty-control">
+            <button class="qty-btn" onclick="updateCartQty('${idField}', -${setSize})" title="Remove Set" style="font-size:11px; font-weight:700; color: var(--text-secondary)">-1</button>
+            <span class="qty-val">${numberOfSets}${extraPieces > 0 ? `+${extraPieces}` : ''}</span>
+            <button class="qty-btn" onclick="updateCartQty('${idField}', ${setSize})" title="Add Set" style="font-size:11px; font-weight:700; color: var(--text-secondary)">+1</button>
+          </div>
+          <button class="btn-icon danger" onclick="updateCartQty('${idField}', -999999)" style="padding:4px; margin:0;" title="Remove Item">
+            <i class="ri-delete-bin-line"></i>
+          </button>
         </div>
       </div>`;
+
+    // Swipe Gestures
+    let touchStartX = 0;
+    div.addEventListener("touchstart", e => touchStartX = e.changedTouches[0].screenX, {passive: true});
+    div.addEventListener("touchend", e => {
+      let touchEndX = e.changedTouches[0].screenX;
+      if (touchStartX - touchEndX > 50) {
+        updateCartQty(idField, -item.cartQty);
+      } else if (touchEndX - touchStartX > 50) {
+        updateCartQty(idField, setSize);
+      }
+    });
+
     el.cartItems.appendChild(div);
   });
 
-  el.cartCount.textContent = count;
+  el.cartCount.textContent = totalSets;
   el.cartSubtotal.textContent = formatCurrency(total);
   el.checkoutBtn.disabled = false;
-  updateFabBadge(count);
+  updateFabBadge(totalSets);
   recalcTotals();
 }
 
@@ -327,7 +384,9 @@ function calcDue() {
 }
 
 // ─── Checkout ───────────────────────────────────────────
+let isProcessingCheckout = false;
 async function handleCheckout() {
+  if (isProcessingCheckout) return;
   if (cart.length === 0) return showToast("Cart is empty", "error");
   const phone = el.custPhone.value.trim();
   if (!phone) {
@@ -347,6 +406,7 @@ async function handleCheckout() {
     if (!confirm(confirmMsg)) return;
   }
 
+  isProcessingCheckout = true;
   el.checkoutBtn.disabled = true;
   el.checkoutBtn.innerHTML = '<i class="ri-loader-4-line ri-spin"></i> Processing...';
 
@@ -372,13 +432,17 @@ async function handleCheckout() {
   if (discountAmount > 0) noteParts.push(`Discount: ${discType === "percent" ? discVal + "%" : "৳" + discVal}`);
   const discountLabel = discountAmount > 0 ? (discType === "percent" ? `${discVal}%` : `৳${discVal}`) : "";
 
-  // Consolidate all cart items into a single order row
   const serialList = cart.map(i => i.SERIAL || i.SKU).join(", ");
   const categoryList = cart.map(i => i.NAME).join(", ");
   const colorList = cart.map(i => i.COLOR).join(", ");
   const sizeList = cart.map(i => i.SIZE).join(", ");
   const qtyList = cart.map(i => i.cartQty).join(", ");
-  const unitPriceList = cart.map(i => parseFloat(i["SELLING PRICE"]) || 0).join(", ");
+  const unitPriceList = cart.map(i => {
+    const setPrice = parseFloat(i["SELLING PRICE"]) || 0;
+    const setSize = parseInt(i["CHURI IN A SET"]) || 1;
+    // Store per-piece price for accurate return refund calculations
+    return setPrice / setSize;
+  }).join(", ");
   const totalQty = cart.reduce((s, i) => s + i.cartQty, 0);
 
   const orderRow = {
@@ -386,7 +450,7 @@ async function handleCheckout() {
     time: now.toLocaleTimeString(), customer_id: phone, customer_name: custName,
     customer_phone: phone, customer_address: custAddress,
     serial: serialList, category: categoryList, color: colorList,
-    size: sizeList, quantity: totalQty, unit_price: unitPriceList,
+    size: sizeList, quantity: qtyList, total_quantity: totalQty, unit_price: unitPriceList,
     total_price: subtotal, discount: discountLabel, total_amount: orderTotal,
     action: "Sale", payment_status: payStatus,
     paid_amount: paidAmt, due_amount: dueAmt, delivery_status: "Pending", notes: (el.orderNote.value || "").trim(),
@@ -416,12 +480,14 @@ async function handleCheckout() {
     el.discountType.value = "none";
     el.discountValue.value = "";
     el.discountValue.style.display = "none";
+    populateFilters();
     clearCart();
     renderProducts();
   } catch (err) {
     showToast(err.message || "Checkout failed", "error");
     console.error(err);
   } finally {
+    isProcessingCheckout = false;
     el.checkoutBtn.innerHTML = "Complete Checkout";
     el.checkoutBtn.disabled = cart.length === 0;
   }

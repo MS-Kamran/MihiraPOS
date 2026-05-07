@@ -2,6 +2,7 @@
  * Analytics Page — KPIs + 6 Charts powered by Chart.js
  */
 let allOrders = [];
+let allInventory = [];
 let charts = {};
 
 const chartColors = {
@@ -22,7 +23,12 @@ document.addEventListener("DOMContentLoaded", async () => {
   document.getElementById("dateTo").addEventListener("change", refresh);
 
   try {
-    allOrders = await Api.getOrders();
+    const [ordersData, invData] = await Promise.all([
+      Api.getOrders(),
+      Api.getInventory()
+    ]);
+    allOrders = ordersData;
+    allInventory = invData;
     document.getElementById("loading").classList.add("hidden");
     document.getElementById("analyticsContent").classList.remove("hidden");
     refresh();
@@ -93,6 +99,40 @@ function refresh() {
   // Delivery and Payment charts still show all orders to reflect the pipeline
   renderDeliveryChart(data);
   renderPaymentChart(data);
+  renderLowStockAlerts();
+}
+
+// ─── Low Stock Alerts ───────────────────────────────────
+function renderLowStockAlerts() {
+  const container = document.getElementById("lowStockList");
+  if (!container) return;
+  container.innerHTML = "";
+
+  const lowStockItems = allInventory.filter(item => {
+    const remaining = getStock(item);
+    return remaining > 0 && remaining <= 5;
+  }).sort((a, b) => {
+    return getStock(a) - getStock(b);
+  });
+
+  if (lowStockItems.length === 0) {
+    container.innerHTML = '<span style="color:var(--text-muted);font-size:13px;">No items are currently low on stock.</span>';
+    return;
+  }
+
+  lowStockItems.forEach(item => {
+    const rem = getStock(item);
+    const imgUrl = getFirstImageUrl(item["IMAGE LINK"], item.IMAGES);
+    const div = document.createElement("div");
+    div.style.cssText = "min-width: 140px; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 8px; padding: 8px; display: flex; flex-direction: column; gap: 4px; align-items: center;";
+    div.innerHTML = `
+      ${imgUrl ? `<img src="${imgUrl}" style="width: 40px; height: 40px; border-radius: 4px; object-fit: cover;" referrerpolicy="no-referrer">` : '<i class="ri-image-line" style="font-size:24px;color:rgba(239,68,68,0.5)"></i>'}
+      <div style="font-size: 11px; font-weight: 600; text-align: center; color: var(--text);">${item.NAME}</div>
+      <div style="font-size: 10px; color: var(--text-muted);">${item.COLOR} · Sz ${item.SIZE}</div>
+      <div style="font-size: 12px; font-weight: 700; color: #ef4444; margin-top: 4px;">${rem} Left</div>
+    `;
+    container.appendChild(div);
+  });
 }
 
 // ─── KPIs ───────────────────────────────────────────────

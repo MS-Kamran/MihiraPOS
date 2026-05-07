@@ -146,7 +146,7 @@ function renderGrid() {
         <div class="product-meta"><span>${item.COLOR}</span><span class="size-badge">Size ${item.SIZE}</span></div>
         <div class="product-footer">
           <span class="product-price">${formatCurrency(price)}</span>
-          <span class="stock-badge ${isOut ? "stock-out" : isLow ? "stock-low" : "stock-ok"}">${isOut ? "Out of Stock" : "Stk: " + stock}</span>
+          <span class="stock-badge ${isOut ? "stock-out" : isLow ? "stock-low" : "stock-ok"}">${isOut ? "Out of Stock" : formatStockDisplay(stock, parseInt(item["CHURI IN A SET"]) || 12)}</span>
         </div>
         ${isOut ? `<button class="btn btn-sm btn-request" onclick="event.stopPropagation(); requestProduct('${item.SERIAL || item.SKU}')" style="margin-top:8px;width:100%;padding:6px;font-size:12px"><i class="ri-notification-line"></i> Request (${reqCount})</button>` : `<button class="btn btn-sm btn-accent" onclick="event.stopPropagation(); goToPOS('${item.SERIAL || item.SKU}')" style="margin-top:8px;width:100%;padding:6px;font-size:12px"><i class="ri-shopping-cart-line"></i> Add to POS</button>`}
       </div>`;
@@ -171,6 +171,10 @@ function openModal(item) {
     ? imageUrls.map((u) => `<img src="${u}" referrerpolicy="no-referrer" style="width:100%;border-radius:8px;margin-bottom:8px" onerror="this.style.display='none'">`).join("")
     : '<div style="text-align:center;padding:20px;color:var(--text-muted)">No images</div>';
 
+  const setSize = parseInt(item["CHURI IN A SET"]) || 12;
+  const stock = getStock(item);
+  const damaged = parseInt(item["DAMAGED"]) || 0;
+
   document.getElementById("modalBody").innerHTML = `
     ${imagesHtml}
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:8px">
@@ -182,9 +186,11 @@ function openModal(item) {
       <div class="form-group"><label>Selling Price</label><span>${formatCurrency(item["SELLING PRICE"])}</span></div>
       <div class="form-group"><label>Last Price</label><span>${formatCurrency(item["LAST PRICE"])}</span></div>
       <div class="form-group"><label>Set Quantity</label><span>${item["SET QUANTITY"]}</span></div>
-      <div class="form-group"><label>Churi In A Set</label><span>${item["CHURI IN A SET"]}</span></div>
+      <div class="form-group"><label>Churi In A Set</label><span>${setSize}</span></div>
       <div class="form-group"><label>Total Unit</label><span>${item["TOTAL UNIT"]}</span></div>
       <div class="form-group"><label>Sold</label><span>${item.SOLD || 0}</span></div>
+      <div class="form-group"><label>Damaged</label><span style="color:${damaged > 0 ? 'var(--danger)' : 'var(--text-muted)'};font-weight:${damaged > 0 ? '600' : '400'}">${damaged}</span></div>
+      <div class="form-group" style="grid-column:span 2;background:rgba(99,102,241,0.08);padding:10px;border-radius:8px;border:1px solid rgba(99,102,241,0.2)"><label style="font-size:13px;font-weight:700;color:var(--accent)">Remaining Stock</label><span style="font-size:16px;font-weight:700">${formatStockDisplay(stock, setSize)}</span></div>
     </div>`;
   document.getElementById("productModal").classList.add("open");
 }

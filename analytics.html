@@ -32,6 +32,10 @@
         <div id="analyticsContent" class="hidden">
             <div class="stats-row" id="kpiRow"></div>
             <div class="chart-grid">
+                <div class="chart-card glass" style="grid-column: 1 / -1; background: rgba(239, 68, 68, 0.05); border-color: rgba(239, 68, 68, 0.2);">
+                    <h3 style="color: #ef4444;"><i class="ri-alert-line"></i> Low Stock Alerts</h3>
+                    <div id="lowStockList" style="display: flex; gap: 8px; overflow-x: auto; padding: 12px 0;"></div>
+                </div>
                 <div class="chart-card glass"><h3>Monthly Revenue</h3><canvas id="monthlyChart"></canvas></div>
                 <div class="chart-card glass"><h3>Weekly Revenue</h3><canvas id="weeklyChart"></canvas></div>
                 <div class="chart-card glass"><h3>Top 10 Products</h3><canvas id="topProductsChart"></canvas></div>

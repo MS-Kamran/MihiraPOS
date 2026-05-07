@@ -123,10 +123,7 @@ function handleUpdateOrder(payload) {
     updatedCount++;
   }
 
-  // If marking as Returned, reverse the inventory
-  if (payload.delivery_status === "Returned") {
-    reverseInventoryForOrder(orderId, data, headers);
-  }
+
 
   return createJsonResponse({
     success: true,
@@ -333,70 +330,120 @@ function handleRequestProduct(payload) {
 function handleProcessReturn(payload) {
   var orderId = String(payload.order_id || "").trim();
   var serial = String(payload.serial || "").trim();
-  var name = String(payload.name || "").trim();
-  var color = String(payload.color || "").trim();
-  var size = String(payload.size || "").trim();
-  var setSize = parseInt(payload.set_size) || 12;
+  var goodCount = parseInt(payload.good_count) || 0;
   var brokenCount = parseInt(payload.broken_count) || 0;
-  var notes = String(payload.notes || "");
+  var unitPrice = parseFloat(payload.unit_price) || 0;
 
   if (!orderId || !serial) return createJsonResponse({ error: "order_id and serial are required" });
-  if (brokenCount < 0 || brokenCount > setSize) return createJsonResponse({ error: "Invalid broken count" });
 
-  var goodCount = setSize - brokenCount;
-  var returnType = brokenCount === 0 ? "Full Return" : "Damaged Return";
-  var actionTaken = brokenCount === 0 ? "Restocked" : "Sent to Spares";
-  // spare_status tracks if spare pieces are still available or used in a rebuild
-  var spareStatus = brokenCount === 0 ? "" : "Available";
-  var returnId = "RET-" + Date.now();
-  var returnDate = new Date().toLocaleDateString("en-GB");
+  var totalReturnedPieces = goodCount + brokenCount;
+  if (totalReturnedPieces <= 0) return createJsonResponse({ error: "Return count must be greater than 0" });
 
-  // Log to RETURNS sheet (includes spare tracking columns)
-  var returnSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(RETURNS_SHEET);
-  if (!returnSheet) return createJsonResponse({ error: "RETURNS sheet not found" });
-  var retHeaders = returnSheet.getRange(1, 1, 1, returnSheet.getLastColumn()).getValues()[0];
-  var retRow = [];
-  var retData = {
-    return_id: returnId, return_date: returnDate, order_id: orderId,
-    serial: serial, name: name, color: color, size: size,
-    set_size: setSize, broken_count: brokenCount, good_count: goodCount,
-    return_type: returnType, action_taken: actionTaken, spare_status: spareStatus, notes: notes
-  };
-  retHeaders.forEach(function(h) { retRow.push(retData[String(h).trim()] !== undefined ? retData[String(h).trim()] : ""); });
-  returnSheet.appendRow(retRow);
-
-  // Update order delivery status to Returned
-  markOrderReturned(orderId);
-
-  // Full return: do not restock, just return success
-  if (brokenCount === 0) {
-    return createJsonResponse({ success: true, return_id: returnId, type: "full", message: "Return logged (not restocked)" });
-  }
-
-  // Damaged return: check if rebuild is now possible
-  var rebuildCheck = checkRebuildInternal(name, color, size, setSize);
-  return createJsonResponse({
-    success: true, return_id: returnId, type: "damaged",
-    spare_pieces: goodCount, can_rebuild: rebuildCheck.canRebuild,
-    available_pieces: rebuildCheck.totalPieces
-  });
-}
-
-// Helper: mark order as Returned in ORDERS sheet
-function markOrderReturned(orderId) {
   var orderSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(ORDERS_SHEET);
+  if (!orderSheet) return createJsonResponse({ error: "Orders sheet not found" });
+  
   var orderData = orderSheet.getDataRange().getValues();
   var orderHeaders = orderData[0];
   var orderIdIdx = orderHeaders.indexOf("order_id");
-  var delStatusIdx = orderHeaders.indexOf("delivery_status");
-  if (orderIdIdx === -1 || delStatusIdx === -1) return;
-  for (var j = 1; j < orderData.length; j++) {
-    if (String(orderData[j][orderIdIdx]) === orderId) {
-      orderSheet.getRange(j + 1, delStatusIdx + 1).setValue("Returned");
-      break;
+  var serialIdx = orderHeaders.indexOf("serial");
+  var qtyIdx = orderHeaders.indexOf("quantity");
+  var unitPriceIdx = orderHeaders.indexOf("unit_price");
+  var totalPriceIdx = orderHeaders.indexOf("total_price");
+  var totalAmountIdx = orderHeaders.indexOf("total_amount");
+  var dueAmountIdx = orderHeaders.indexOf("due_amount");
+  var paidAmountIdx = orderHeaders.indexOf("paid_amount");
+
+  var rowUpdated = false;
+
+  for (var i = 1; i < orderData.length; i++) {
+    if (String(orderData[i][orderIdIdx]) === orderId) {
+      // Parse comma-separated fields
+      var serials = String(orderData[i][serialIdx]).split(",").map(function(s) { return s.trim(); });
+      var qtys = String(orderData[i][qtyIdx]).split(",").map(function(s) { return s.trim(); });
+      var prices = String(orderData[i][unitPriceIdx]).split(",").map(function(s) { return s.trim(); });
+      
+      var itemIndex = serials.indexOf(serial);
+      if (itemIndex > -1) {
+        var currentQty = parseInt(qtys[itemIndex]) || 0;
+        var newQty = Math.max(0, currentQty - totalReturnedPieces);
+        qtys[itemIndex] = newQty;
+        
+        // Update comma-separated quantity string
+        orderSheet.getRange(i + 1, qtyIdx + 1).setValue(qtys.join(", "));
+        
+        // Calculate refund value
+        var refundValue = totalReturnedPieces * unitPrice;
+        
+        // Adjust total_price (subtotal)
+        var currentTotalPrice = parseFloat(orderData[i][totalPriceIdx]) || 0;
+        var newTotalPrice = Math.max(0, currentTotalPrice - refundValue);
+        orderSheet.getRange(i + 1, totalPriceIdx + 1).setValue(newTotalPrice);
+        
+        // Adjust total_amount (grand total)
+        var currentTotalAmount = parseFloat(orderData[i][totalAmountIdx]) || 0;
+        var newTotalAmount = Math.max(0, currentTotalAmount - refundValue);
+        orderSheet.getRange(i + 1, totalAmountIdx + 1).setValue(newTotalAmount);
+        
+        // Adjust due_amount
+        var currentPaid = parseFloat(orderData[i][paidAmountIdx]) || 0;
+        var newDueAmount = Math.max(0, newTotalAmount - currentPaid);
+        orderSheet.getRange(i + 1, dueAmountIdx + 1).setValue(newDueAmount);
+        
+        // If order total goes to 0, mark delivery_status as Returned
+        if (newTotalAmount === 0) {
+          var delStatusIdx = orderHeaders.indexOf("delivery_status");
+          if (delStatusIdx > -1) {
+            orderSheet.getRange(i + 1, delStatusIdx + 1).setValue("Returned");
+          }
+        }
+        
+        rowUpdated = true;
+        break; // Assuming one row per order_id
+      }
     }
   }
+
+  if (!rowUpdated) {
+    return createJsonResponse({ error: "Order or item not found" });
+  }
+
+  // 2. Update Inventory (Subtract from SOLD, Add to DAMAGED)
+  var invSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(INVENTORY_SHEET);
+  if (invSheet) {
+    var invData = invSheet.getDataRange().getValues();
+    var invHeaders = invData[0];
+    var skuIdx = invHeaders.indexOf("SERIAL");
+    var soldIdx = invHeaders.indexOf("SOLD");
+    var damagedIdx = invHeaders.indexOf("DAMAGED");
+
+    if (skuIdx > -1 && soldIdx > -1 && damagedIdx > -1) {
+      for (var i = 1; i < invData.length; i++) {
+        if (String(invData[i][skuIdx]) === serial) {
+          // Subtract ALL returned pieces (good + broken) from SOLD
+          // Both were originally counted as sold when the order was placed
+          var totalReturned = goodCount + brokenCount;
+          if (totalReturned > 0) {
+            var currentSold = parseInt(invData[i][soldIdx]) || 0;
+            invSheet.getRange(i + 1, soldIdx + 1).setValue(Math.max(0, currentSold - totalReturned));
+          }
+          // Add Broken Pieces to DAMAGED (removes from available stock)
+          if (brokenCount > 0) {
+            var currentDamaged = parseInt(invData[i][damagedIdx]) || 0;
+            invSheet.getRange(i + 1, damagedIdx + 1).setValue(currentDamaged + brokenCount);
+          }
+          break;
+        }
+      }
+    }
+  }
+
+  return createJsonResponse({ 
+    success: true, 
+    type: brokenCount === 0 ? "full" : "damaged", 
+    message: "Return processed successfully" 
+  });
 }
+
 
 // Check rebuild possibility using RETURNS sheet (spare_status = Available)
 function checkRebuildInternal(name, color, size, setSize) {

@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>POS — Mihira</title>
     <meta name="description" content="Mihira Point of Sale System">
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="style.css?v=3">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
 </head>
@@ -17,19 +17,34 @@
         <div class="pos-layout">
             <!-- Left: Products -->
             <div class="pos-products">
-                <div class="controls">
-                    <div class="search-box">
-                        <i class="ri-search-line"></i>
-                        <input type="text" id="searchInput" placeholder="Search SKU, name, color...">
+                <div class="controls" style="flex-direction: column; align-items: stretch; gap: 12px;">
+                    <div style="display: flex; gap: 8px; width: 100%;">
+                        <div class="search-box" style="flex: 1;">
+                            <i class="ri-search-line"></i>
+                            <input type="text" id="searchInput" placeholder="Search SKU, name, color...">
+                        </div>
+                        <button class="btn btn-outline" id="resetFiltersBtn" onclick="resetFilters()" style="padding: 10px; border: 1px solid var(--border); background: var(--input-bg);"><i class="ri-refresh-line"></i></button>
                     </div>
-                    <select id="filterName"><option value="all">All Designs</option></select>
-                    <select id="filterColor"><option value="all">All Colors</option></select>
-                    <select id="filterSize"><option value="all">All Sizes</option></select>
-                    <select id="filterStock"><option value="all">All Stock</option><option value="in_stock">In Stock</option><option value="low_stock">Low Stock</option><option value="out_of_stock">Out of Stock</option></select>
-                    <button class="btn" id="resetFiltersBtn" onclick="resetFilters()"><i class="ri-refresh-line"></i> Reset Filters</button>
+                    
+                    <div class="filters" style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px;">
+                        <select id="filterName" style="flex:1; min-width:120px;"><option value="all">All Designs</option></select>
+                        <select id="filterColor" style="flex:1; min-width:120px;"><option value="all">All Colors</option></select>
+                        <select id="filterSize" style="flex:1; min-width:120px;"><option value="all">All Sizes</option></select>
+                        <select id="filterStock" style="flex:1; min-width:120px;">
+                            <option value="all">All Stock</option>
+                            <option value="in_stock">In Stock</option>
+                            <option value="low_stock">Low Stock</option>
+                            <option value="out_of_stock">Out of Stock</option>
+                        </select>
+                    </div>
                 </div>
-                <div id="loading" class="loading-state">
-                    <div class="spinner"></div><p>Loading inventory...</p>
+                <div id="loading" class="product-grid" style="grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; margin-top: 16px;">
+                    <div class="skeleton-card"><div class="skeleton skeleton-img"></div><div class="skeleton skeleton-text"></div><div class="skeleton skeleton-text short"></div></div>
+                    <div class="skeleton-card"><div class="skeleton skeleton-img"></div><div class="skeleton skeleton-text"></div><div class="skeleton skeleton-text short"></div></div>
+                    <div class="skeleton-card"><div class="skeleton skeleton-img"></div><div class="skeleton skeleton-text"></div><div class="skeleton skeleton-text short"></div></div>
+                    <div class="skeleton-card"><div class="skeleton skeleton-img"></div><div class="skeleton skeleton-text"></div><div class="skeleton skeleton-text short"></div></div>
+                    <div class="skeleton-card"><div class="skeleton skeleton-img"></div><div class="skeleton skeleton-text"></div><div class="skeleton skeleton-text short"></div></div>
+                    <div class="skeleton-card"><div class="skeleton skeleton-img"></div><div class="skeleton skeleton-text"></div><div class="skeleton skeleton-text short"></div></div>
                 </div>
                 <div id="product-grid" class="product-grid hidden"></div>
                 <div class="pagination-controls hidden" id="paginationControls">
@@ -72,14 +87,14 @@
                     <h3>Payment</h3>
                     <div class="checkout-row">
                         <select id="paymentMethod">
+                            <option value="COD" selected>COD</option>
                             <option value="bKash">bKash</option>
                             <option value="Nagad">Nagad</option>
-                            <option value="COD">COD</option>
                             <option value="Bank">Bank Transfer</option>
                         </select>
                         <select id="paymentStatus">
+                            <option value="Unpaid" selected>Unpaid</option>
                             <option value="Paid">Paid</option>
-                            <option value="Unpaid">Unpaid</option>
                             <option value="Partial">Partial</option>
                         </select>
                     </div>
@@ -90,8 +105,8 @@
                     <h3>Delivery & Discount</h3>
                     <div class="checkout-row">
                         <select id="deliveryFee">
+                            <option value="80" selected>Delivery ৳80</option>
                             <option value="0">Free Delivery</option>
-                            <option value="80">Delivery ৳80</option>
                             <option value="120">Delivery ৳120</option>
                         </select>
                     </div>
@@ -110,6 +125,8 @@
                         <div class="total-row" id="discountRow" style="display:none"><span>Discount</span><span id="discountDisplay">-৳0</span></div>
                         <div class="total-row grand-total"><span>Total</span><span id="cartTotal">৳0</span></div>
                     </div>
+                </div>
+                <div style="padding: 12px; border-top: 1px solid var(--border); background: var(--panel-solid);">
                     <button id="checkoutBtn" class="btn btn-primary btn-large" disabled>Complete Checkout</button>
                 </div>
             </div>
@@ -117,7 +134,7 @@
     </div>
 
     <script>window.APP_CONFIG={API_URL:"https://script.google.com/macros/s/AKfycbwQQrxrQ2A2XuH82kkXM69fX8uskeY93yjos1-AJzKHLhAc682fCLGajURcIlf2tw0M/exec"};</script>
-    <script src="shared.js"></script>
-    <script src="pos.js"></script>
+    <script src="shared.js?v=3"></script>
+    <script src="pos.js?v=3"></script>
 </body>
 </html>

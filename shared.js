@@ -100,11 +100,23 @@ const Api = {
   getReturns()    { return this.get("getReturns"); },
 };
 
-// Available stock = SET QUANTITY - SOLD (never mutate SET QUANTITY)
+// Available stock = TOTAL UNIT - SOLD - DAMAGED (never mutate TOTAL UNIT)
 function getStock(item) {
-  const setQty = parseInt(item["SET QUANTITY"]) || 0;
+  const totalQty = parseInt(item["TOTAL UNIT"]) || 0;
   const sold = parseInt(item["SOLD"]) || 0;
-  return Math.max(0, setQty - sold);
+  const damaged = parseInt(item["DAMAGED"]) || 0;
+  return Math.max(0, totalQty - sold - damaged);
+}
+
+// Format stock into Sets and Pieces (e.g. "10 Sets + 9 Pcs")
+function formatStockDisplay(totalPieces, setSize) {
+  if (!setSize || setSize <= 1) return `${totalPieces} Pcs`;
+  const sets = Math.floor(totalPieces / setSize);
+  const pieces = totalPieces % setSize;
+  if (sets === 0 && pieces === 0) return "0";
+  if (sets === 0) return `${pieces} Pcs`;
+  if (pieces === 0) return `<span style="color:var(--accent);font-weight:700">${sets} Sets</span>`;
+  return `<span style="color:var(--accent);font-weight:700">${sets} Sets</span> + ${pieces} Pcs`;
 }
 
 // ─── Toast Notifications ────────────────────────────────
