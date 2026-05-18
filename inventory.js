@@ -56,14 +56,18 @@ function populateSuggestions() {
 
 function renderStats() {
   const totalSKUs = inventory.length;
-  const totalStock = inventory.reduce((s, i) => s + getStock(i), 0);
+  const totalSets = inventory.reduce((s, i) => {
+    const stock = getStock(i);
+    const setSize = parseInt(i["CHURI IN A SET"]) || 1;
+    return s + Math.floor(stock / setSize);
+  }, 0);
   const lowStock = inventory.filter((i) => { const q = getStock(i); return q > 0 && q < 5; }).length;
   const totalValue = inventory.reduce((s, i) => s + (parseFloat(i["SELLING PRICE"]) || 0) * getStock(i), 0);
   const outOfStock = inventory.filter((i) => getStock(i) <= 0).length;
 
   document.getElementById("statsRow").innerHTML = `
     <div class="stat-card glass"><div class="stat-icon blue"><i class="ri-archive-line"></i></div><div class="stat-label">Total SKUs</div><div class="stat-value">${totalSKUs}</div></div>
-    <div class="stat-card glass"><div class="stat-icon green"><i class="ri-stack-line"></i></div><div class="stat-label">Total Stock</div><div class="stat-value">${totalStock}</div></div>
+    <div class="stat-card glass"><div class="stat-icon green"><i class="ri-stack-line"></i></div><div class="stat-label">Total Sets</div><div class="stat-value">${totalSets}</div></div>
     <div class="stat-card glass"><div class="stat-icon yellow"><i class="ri-error-warning-line"></i></div><div class="stat-label">Low Stock</div><div class="stat-value">${lowStock}</div></div>
     <div class="stat-card glass"><div class="stat-icon red"><i class="ri-close-circle-line"></i></div><div class="stat-label">Out of Stock</div><div class="stat-value">${outOfStock}</div></div>
     <div class="stat-card glass"><div class="stat-icon cyan"><i class="ri-money-dollar-circle-line"></i></div><div class="stat-label">Total Value</div><div class="stat-value">${formatCurrency(totalValue)}</div></div>

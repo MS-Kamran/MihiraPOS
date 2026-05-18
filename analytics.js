@@ -1,20 +1,23 @@
 /**
- * Analytics Page — KPIs + 6 Charts powered by Chart.js
+ * Analytics Page — KPIs + Charts powered by Chart.js
+ * Includes: Today/Week/Month/All filters, Sets Sold, Daily Revenue,
+ * Top Customers, Revenue vs Collection, and more.
  */
 let allOrders = [];
 let allInventory = [];
 let charts = {};
 
 const chartColors = {
-  primary: "#3b82f6", accent: "#10b981", warning: "#f59e0b", danger: "#ef4444",
-  info: "#06b6d4", purple: "#8b5cf6", pink: "#ec4899", orange: "#f97316",
+  primary: "#c9a882", accent: "#d4b896", success: "#10b981",
+  warning: "#f59e0b", danger: "#ef4444", info: "#06b6d4",
+  purple: "#8b5cf6", pink: "#ec4899", orange: "#f97316",
   lime: "#84cc16", teal: "#14b8a6",
 };
 const palette = Object.values(chartColors);
 
-// Chart.js global defaults for dark theme
-Chart.defaults.color = "#94a3b8";
-Chart.defaults.borderColor = "rgba(255,255,255,0.06)";
+// Chart.js global defaults for dark teal theme
+Chart.defaults.color = "#8a9a8a";
+Chart.defaults.borderColor = "rgba(201,168,130,0.08)";
 Chart.defaults.font.family = "Inter";
 
 document.addEventListener("DOMContentLoaded", async () => {
@@ -47,7 +50,10 @@ function setupPresets() {
       const from = document.getElementById("dateFrom");
       const to = document.getElementById("dateTo");
 
-      if (preset === "week") {
+      if (preset === "today") {
+        from.value = formatDateInput(now);
+        to.value = formatDateInput(now);
+      } else if (preset === "week") {
         const weekAgo = new Date(now); weekAgo.setDate(now.getDate() - 7);
         from.value = formatDateInput(weekAgo); to.value = formatDateInput(now);
       } else if (preset === "month") {
@@ -86,17 +92,22 @@ function parseOrderDate(dateStr) {
   return isNaN(d.getTime()) ? null : d;
 }
 
+// Parse comma-separated quantities correctly
+function sumQuantities(qtyStr) {
+  return String(qtyStr || "0").split(",").reduce((sum, q) => sum + (parseInt(q.trim()) || 0), 0);
+}
+
 function refresh() {
   const data = getFilteredOrders();
   const validSalesData = data.filter(r => r.delivery_status !== "Returned");
 
   renderKPIs(validSalesData);
+  renderDailyChart(validSalesData);
   renderMonthlyChart(validSalesData);
-  renderWeeklyChart(validSalesData);
   renderTopProducts(validSalesData);
   renderColorsChart(validSalesData);
-  
-  // Delivery and Payment charts still show all orders to reflect the pipeline
+  renderTopCustomers(validSalesData);
+  renderRevenueVsCollection(validSalesData);
   renderDeliveryChart(data);
   renderPaymentChart(data);
   renderLowStockAlerts();
@@ -111,9 +122,7 @@ function renderLowStockAlerts() {
   const lowStockItems = allInventory.filter(item => {
     const remaining = getStock(item);
     return remaining > 0 && remaining <= 5;
-  }).sort((a, b) => {
-    return getStock(a) - getStock(b);
-  });
+  }).sort((a, b) => getStock(a) - getStock(b));
 
   if (lowStockItems.length === 0) {
     container.innerHTML = '<span style="color:var(--text-muted);font-size:13px;">No items are currently low on stock.</span>';
@@ -124,12 +133,12 @@ function renderLowStockAlerts() {
     const rem = getStock(item);
     const imgUrl = getFirstImageUrl(item["IMAGE LINK"], item.IMAGES);
     const div = document.createElement("div");
-    div.style.cssText = "min-width: 140px; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 8px; padding: 8px; display: flex; flex-direction: column; gap: 4px; align-items: center;";
+    div.style.cssText = "min-width:120px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);border-radius:8px;padding:8px;display:flex;flex-direction:column;gap:3px;align-items:center;";
     div.innerHTML = `
-      ${imgUrl ? `<img src="${imgUrl}" style="width: 40px; height: 40px; border-radius: 4px; object-fit: cover;" referrerpolicy="no-referrer">` : '<i class="ri-image-line" style="font-size:24px;color:rgba(239,68,68,0.5)"></i>'}
-      <div style="font-size: 11px; font-weight: 600; text-align: center; color: var(--text);">${item.NAME}</div>
-      <div style="font-size: 10px; color: var(--text-muted);">${item.COLOR} · Sz ${item.SIZE}</div>
-      <div style="font-size: 12px; font-weight: 700; color: #ef4444; margin-top: 4px;">${rem} Left</div>
+      ${imgUrl ? `<img src="${imgUrl}" style="width:36px;height:36px;border-radius:4px;object-fit:cover;" referrerpolicy="no-referrer">` : '<i class="ri-image-line" style="font-size:20px;color:rgba(239,68,68,0.4)"></i>'}
+      <div style="font-size:11px;font-weight:600;text-align:center;color:var(--text);">${item.NAME}</div>
+      <div style="font-size:10px;color:var(--text-muted);">${item.COLOR} · Sz ${item.SIZE}</div>
+      <div style="font-size:12px;font-weight:700;color:#ef4444;">${rem} Left</div>
     `;
     container.appendChild(div);
   });
@@ -138,17 +147,54 @@ function renderLowStockAlerts() {
 // ─── KPIs ───────────────────────────────────────────────
 function renderKPIs(data) {
   const uniqueOrders = new Set(data.map((r) => r.order_id));
-  const totalRevenue = data.reduce((s, r) => s + (parseFloat(r.total_price) || 0), 0);
+  const totalRevenue = data.reduce((s, r) => s + (parseFloat(r.total_amount) || parseFloat(r.total_price) || 0), 0);
   const aov = uniqueOrders.size > 0 ? totalRevenue / uniqueOrders.size : 0;
-  const totalUnits = data.reduce((s, r) => s + (parseInt(r.quantity) || 0), 0);
+
+  // Sets Sold: sum per-item quantities and divide by set size from inventory
+  let totalSetsSold = 0;
+  data.forEach(r => {
+    const serials = String(r.serial || "").split(",").map(s => s.trim()).filter(Boolean);
+    const qtys = String(r.quantity || "0").split(",").map(s => parseInt(s.trim()) || 0);
+    serials.forEach((serial, idx) => {
+      let qty = qtys[idx] || qtys[0] || 0;
+      const invItem = allInventory.find(i => String(i.SERIAL) === serial);
+      const setSize = invItem ? (parseInt(invItem["CHURI IN A SET"]) || 1) : 1;
+      // Reject corrupted qty values (>500 pieces per line item is unrealistic)
+      if (qty > 500 || qty <= 0) qty = setSize;
+      totalSetsSold += qty / setSize;
+    });
+  });
+  totalSetsSold = Math.round(totalSetsSold);
+
   const pendingCollection = data.filter((r) => r.payment_status !== "Paid").reduce((s, r) => s + (parseFloat(r.due_amount) || 0), 0);
+  const totalPaid = data.reduce((s, r) => s + (parseFloat(r.paid_amount) || 0), 0);
+
+  // Repeat customers (>1 order)
+  const customerOrderCount = {};
+  data.forEach(r => {
+    const phone = r.customer_phone || r.customer_id;
+    if (phone) customerOrderCount[phone] = (customerOrderCount[phone] || 0) + 1;
+  });
+  const repeatCustomers = Object.values(customerOrderCount).filter(c => c > 1).length;
+
+  // Today's stats
+  const todayStr = formatDateInput(new Date());
+  const todayOrders = data.filter(r => {
+    const d = parseOrderDate(r.date);
+    return d && formatDateInput(d) === todayStr;
+  });
+  const todayRevenue = todayOrders.reduce((s, r) => s + (parseFloat(r.total_amount) || parseFloat(r.total_price) || 0), 0);
+  const todayOrderCount = new Set(todayOrders.map(r => r.order_id)).size;
 
   document.getElementById("kpiRow").innerHTML = `
+    <div class="stat-card glass"><div class="stat-icon gold"><i class="ri-calendar-check-line"></i></div><div class="stat-label">Today's Revenue</div><div class="stat-value">${formatCurrency(todayRevenue)}</div></div>
+    <div class="stat-card glass"><div class="stat-icon cyan"><i class="ri-shopping-bag-line"></i></div><div class="stat-label">Today's Orders</div><div class="stat-value">${todayOrderCount}</div></div>
     <div class="stat-card glass"><div class="stat-icon green"><i class="ri-money-dollar-circle-line"></i></div><div class="stat-label">Total Revenue</div><div class="stat-value">${formatCurrency(totalRevenue)}</div></div>
     <div class="stat-card glass"><div class="stat-icon blue"><i class="ri-line-chart-line"></i></div><div class="stat-label">AOV</div><div class="stat-value">${formatCurrency(aov)}</div></div>
     <div class="stat-card glass"><div class="stat-icon cyan"><i class="ri-file-list-3-line"></i></div><div class="stat-label">Total Orders</div><div class="stat-value">${uniqueOrders.size}</div></div>
-    <div class="stat-card glass"><div class="stat-icon yellow"><i class="ri-stack-line"></i></div><div class="stat-label">Units Sold</div><div class="stat-value">${totalUnits}</div></div>
-    <div class="stat-card glass"><div class="stat-icon red"><i class="ri-error-warning-line"></i></div><div class="stat-label">Pending Collection</div><div class="stat-value">${formatCurrency(pendingCollection)}</div></div>
+    <div class="stat-card glass"><div class="stat-icon yellow"><i class="ri-stack-line"></i></div><div class="stat-label">Sets Sold</div><div class="stat-value">${totalSetsSold}</div></div>
+    <div class="stat-card glass"><div class="stat-icon red"><i class="ri-error-warning-line"></i></div><div class="stat-label">Pending Due</div><div class="stat-value">${formatCurrency(pendingCollection)}</div></div>
+    <div class="stat-card glass"><div class="stat-icon green"><i class="ri-user-heart-line"></i></div><div class="stat-label">Repeat Customers</div><div class="stat-value">${repeatCustomers}</div></div>
   `;
 }
 
@@ -164,7 +210,7 @@ function createBarWithTrend(canvasId, labels, values, label) {
       labels,
       datasets: [
         { label, data: values, backgroundColor: chartColors.primary + "80", borderColor: chartColors.primary, borderWidth: 1, borderRadius: 4, order: 2 },
-        { label: "Trend", data: values, type: "line", borderColor: chartColors.accent, borderWidth: 2, pointRadius: 3, pointBackgroundColor: chartColors.accent, tension: 0.4, order: 1 },
+        { label: "Trend", data: values, type: "line", borderColor: chartColors.success, borderWidth: 2, pointRadius: 3, pointBackgroundColor: chartColors.success, tension: 0.4, order: 1 },
       ],
     },
     options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } },
@@ -177,7 +223,7 @@ function createDoughnut(canvasId, labels, values) {
   charts[canvasId] = new Chart(ctx, {
     type: "doughnut",
     data: { labels, datasets: [{ data: values, backgroundColor: palette.slice(0, labels.length), borderWidth: 0 }] },
-    options: { responsive: true, plugins: { legend: { position: "bottom", labels: { padding: 12, usePointStyle: true } } } },
+    options: { responsive: true, plugins: { legend: { position: "bottom", labels: { padding: 10, usePointStyle: true, font: { size: 11 } } } } },
   });
 }
 
@@ -191,6 +237,35 @@ function createHorizontalBar(canvasId, labels, values) {
   });
 }
 
+// ─── Daily Revenue (last 14 days) ───────────────────────
+function renderDailyChart(data) {
+  const days = {};
+  const now = new Date();
+  // Pre-populate last 14 days
+  for (let i = 13; i >= 0; i--) {
+    const d = new Date(now);
+    d.setDate(now.getDate() - i);
+    days[formatDateInput(d)] = 0;
+  }
+
+  data.forEach((r) => {
+    const d = parseOrderDate(r.date);
+    if (!d) return;
+    const key = formatDateInput(d);
+    if (days[key] !== undefined) {
+      days[key] += (parseFloat(r.total_amount) || parseFloat(r.total_price) || 0);
+    }
+  });
+
+  const sorted = Object.keys(days).sort();
+  const dayNames = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+  const labels = sorted.map(k => {
+    const d = new Date(k);
+    return dayNames[d.getDay()] + " " + d.getDate();
+  });
+  createBarWithTrend("dailyChart", labels, sorted.map(k => days[k]), "Revenue");
+}
+
 // ─── Monthly Revenue ────────────────────────────────────
 function renderMonthlyChart(data) {
   const months = {};
@@ -198,7 +273,7 @@ function renderMonthlyChart(data) {
     const d = parseOrderDate(r.date);
     if (!d) return;
     const key = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0");
-    months[key] = (months[key] || 0) + (parseFloat(r.total_price) || 0);
+    months[key] = (months[key] || 0) + (parseFloat(r.total_amount) || parseFloat(r.total_price) || 0);
   });
   const sorted = Object.keys(months).sort();
   const monthNames = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
@@ -206,27 +281,10 @@ function renderMonthlyChart(data) {
   createBarWithTrend("monthlyChart", labels, sorted.map((k) => months[k]), "Revenue");
 }
 
-// ─── Weekly Revenue ─────────────────────────────────────
-function renderWeeklyChart(data) {
-  const weeks = {};
-  data.forEach((r) => {
-    const d = parseOrderDate(r.date);
-    if (!d) return;
-    const weekStart = new Date(d);
-    weekStart.setDate(d.getDate() - d.getDay());
-    const key = weekStart.toISOString().split("T")[0];
-    weeks[key] = (weeks[key] || 0) + (parseFloat(r.total_price) || 0);
-  });
-  const sorted = Object.keys(weeks).sort().slice(-12);
-  const labels = sorted.map((k) => { const d = new Date(k); return (d.getMonth()+1) + "/" + d.getDate(); });
-  createBarWithTrend("weeklyChart", labels, sorted.map((k) => weeks[k]), "Revenue");
-}
-
 // ─── Top 10 Products ────────────────────────────────────
 function renderTopProducts(data) {
   const products = {};
   data.forEach((r) => {
-    // Use category (product NAME), not serial code
     const rawNames = String(r.category || "Unknown");
     const rawQtys = String(r.quantity || "1");
     const names = rawNames.split(",").map(s => s.trim());
@@ -257,6 +315,42 @@ function renderColorsChart(data) {
   });
   const sorted = Object.entries(colors).sort((a, b) => b[1] - a[1]).slice(0, 10);
   createHorizontalBar("colorsChart", sorted.map((s) => s[0]), sorted.map((s) => s[1]));
+}
+
+// ─── Top 5 Customers ────────────────────────────────────
+function renderTopCustomers(data) {
+  const customers = {};
+  data.forEach(r => {
+    const name = r.customer_name || "Unknown";
+    const phone = String(r.customer_phone || "");
+    const key = `${name} (${phone.slice(-4) || "?"})`;
+    customers[key] = (customers[key] || 0) + (parseFloat(r.total_amount) || parseFloat(r.total_price) || 0);
+  });
+  const sorted = Object.entries(customers).sort((a, b) => b[1] - a[1]).slice(0, 5);
+  createHorizontalBar("topCustomersChart", sorted.map(s => s[0]), sorted.map(s => s[1]));
+}
+
+// ─── Revenue vs Collection ──────────────────────────────
+function renderRevenueVsCollection(data) {
+  destroyChart("revenueVsCollectionChart");
+  const totalRevenue = data.reduce((s, r) => s + (parseFloat(r.total_amount) || parseFloat(r.total_price) || 0), 0);
+  const totalCollected = data.reduce((s, r) => s + (parseFloat(r.paid_amount) || 0), 0);
+  const totalDue = Math.max(0, totalRevenue - totalCollected);
+
+  const ctx = document.getElementById("revenueVsCollectionChart").getContext("2d");
+  charts["revenueVsCollectionChart"] = new Chart(ctx, {
+    type: "bar",
+    data: {
+      labels: ["Revenue", "Collected", "Due"],
+      datasets: [{
+        data: [totalRevenue, totalCollected, totalDue],
+        backgroundColor: [chartColors.primary + "cc", chartColors.success + "cc", chartColors.danger + "cc"],
+        borderRadius: 6,
+        borderWidth: 0,
+      }]
+    },
+    options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } },
+  });
 }
 
 // ─── Delivery Pipeline ──────────────────────────────────

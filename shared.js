@@ -154,7 +154,7 @@ function renderSidebar() {
 
   sidebarEl.innerHTML = `
     <div class="sidebar-brand">
-      <span class="brand-icon">💎</span>
+      <img src="Logo/MihiraLogo.png" alt="Mihira" style="width:36px;height:36px;border-radius:6px;">
       <span class="brand-text">Mihira</span>
     </div>
     <nav class="sidebar-nav">

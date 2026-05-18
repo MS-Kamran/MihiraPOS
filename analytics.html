@@ -14,15 +14,17 @@
     <aside id="sidebar"></aside>
 
     <div class="main-content">
-        <div class="page-header">
+        <div class="page-header" style="flex-wrap:wrap;gap:12px;">
             <div><h1>Analytics</h1><p class="subtitle">Sales insights & trends</p></div>
-            <div class="controls">
-                <input type="date" id="dateFrom">
-                <input type="date" id="dateTo">
-                <div class="tabs" id="presetTabs">
-                    <button class="tab-btn active" data-preset="all">All Time</button>
-                    <button class="tab-btn" data-preset="month">This Month</button>
-                    <button class="tab-btn" data-preset="week">This Week</button>
+            <div class="controls" style="flex-wrap:wrap;gap:8px;align-items:center;">
+                <input type="date" id="dateFrom" class="form-input" style="padding:8px 10px;height:38px;">
+                <span style="color:var(--text-muted);font-size:12px;">to</span>
+                <input type="date" id="dateTo" class="form-input" style="padding:8px 10px;height:38px;">
+                <div class="tabs" id="presetTabs" style="gap:4px;">
+                    <button class="tab-btn" data-preset="today">Today</button>
+                    <button class="tab-btn" data-preset="week">Week</button>
+                    <button class="tab-btn" data-preset="month">Month</button>
+                    <button class="tab-btn active" data-preset="all">All</button>
                 </div>
             </div>
         </div>
@@ -30,18 +32,40 @@
         <div id="loading" class="loading-state"><div class="spinner"></div><p>Loading analytics...</p></div>
 
         <div id="analyticsContent" class="hidden">
-            <div class="stats-row" id="kpiRow"></div>
-            <div class="chart-grid">
-                <div class="chart-card glass" style="grid-column: 1 / -1; background: rgba(239, 68, 68, 0.05); border-color: rgba(239, 68, 68, 0.2);">
-                    <h3 style="color: #ef4444;"><i class="ri-alert-line"></i> Low Stock Alerts</h3>
-                    <div id="lowStockList" style="display: flex; gap: 8px; overflow-x: auto; padding: 12px 0;"></div>
+            <!-- KPI Row -->
+            <div class="stats-row" id="kpiRow" style="grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;"></div>
+
+            <!-- Charts Grid -->
+            <div class="chart-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px;">
+                <!-- Low Stock Alerts -->
+                <div class="chart-card glass" style="grid-column:1/-1;background:rgba(239,68,68,0.04);border-color:rgba(239,68,68,0.15);">
+                    <h3 style="color:#ef4444;font-size:14px;margin-bottom:8px;"><i class="ri-alert-line"></i> Low Stock Alerts</h3>
+                    <div id="lowStockList" style="display:flex;gap:8px;overflow-x:auto;padding:8px 0;"></div>
                 </div>
-                <div class="chart-card glass"><h3>Monthly Revenue</h3><canvas id="monthlyChart"></canvas></div>
-                <div class="chart-card glass"><h3>Weekly Revenue</h3><canvas id="weeklyChart"></canvas></div>
-                <div class="chart-card glass"><h3>Top 10 Products</h3><canvas id="topProductsChart"></canvas></div>
-                <div class="chart-card glass"><h3>Trending Colors</h3><canvas id="colorsChart"></canvas></div>
-                <div class="chart-card glass"><h3>Delivery Pipeline</h3><canvas id="deliveryChart"></canvas></div>
-                <div class="chart-card glass"><h3>Payment Status</h3><canvas id="paymentChart"></canvas></div>
+
+                <!-- Daily Revenue -->
+                <div class="chart-card glass"><h3 style="font-size:14px;">Daily Revenue (14 Days)</h3><canvas id="dailyChart"></canvas></div>
+
+                <!-- Monthly Revenue -->
+                <div class="chart-card glass"><h3 style="font-size:14px;">Monthly Revenue</h3><canvas id="monthlyChart"></canvas></div>
+
+                <!-- Top 10 Products -->
+                <div class="chart-card glass"><h3 style="font-size:14px;">Top 10 Products</h3><canvas id="topProductsChart"></canvas></div>
+
+                <!-- Trending Colors -->
+                <div class="chart-card glass"><h3 style="font-size:14px;">Trending Colors</h3><canvas id="colorsChart"></canvas></div>
+
+                <!-- Top 5 Customers -->
+                <div class="chart-card glass"><h3 style="font-size:14px;">Top 5 Customers</h3><canvas id="topCustomersChart"></canvas></div>
+
+                <!-- Revenue vs Collection -->
+                <div class="chart-card glass"><h3 style="font-size:14px;">Revenue vs Collection</h3><canvas id="revenueVsCollectionChart"></canvas></div>
+
+                <!-- Delivery Pipeline -->
+                <div class="chart-card glass"><h3 style="font-size:14px;">Delivery Pipeline</h3><canvas id="deliveryChart"></canvas></div>
+
+                <!-- Payment Status -->
+                <div class="chart-card glass"><h3 style="font-size:14px;">Payment Status</h3><canvas id="paymentChart"></canvas></div>
             </div>
         </div>
     </div>

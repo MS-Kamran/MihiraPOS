@@ -734,8 +734,25 @@ function openOrderDetail(orderId) {
   document.getElementById("detailOrderId").textContent = order.order_id;
   document.getElementById("detailOrderMeta").textContent = `${cleanDate} · ${cleanTime}`;
   document.getElementById("detailCustomerInfo").innerHTML = `
-    <i class="ri-user-line"></i> <strong>${order.customer_name}</strong> · ${order.customer_phone}
-    ${order.customer_address ? `<br><i class="ri-map-pin-line"></i> ${order.customer_address}` : ''}
+    <div style="display:flex;flex-direction:column;gap:10px;padding:14px;background:rgba(201,168,130,0.06);border:1px solid rgba(201,168,130,0.12);border-radius:10px;">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div style="width:40px;height:40px;border-radius:50%;background:rgba(201,168,130,0.15);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+          <i class="ri-user-3-line" style="font-size:20px;color:var(--primary);"></i>
+        </div>
+        <div>
+          <div style="font-size:17px;font-weight:700;color:var(--text);letter-spacing:0.3px;">${order.customer_name}</div>
+          <a href="tel:${order.customer_phone}" style="font-size:14px;color:var(--primary);text-decoration:none;font-weight:500;">
+            <i class="ri-phone-line" style="font-size:13px;"></i> ${order.customer_phone}
+          </a>
+        </div>
+      </div>
+      ${order.customer_address ? `
+        <div style="display:flex;align-items:flex-start;gap:8px;padding-top:8px;border-top:1px dashed rgba(201,168,130,0.15);">
+          <i class="ri-map-pin-2-line" style="font-size:16px;color:var(--warning);margin-top:1px;flex-shrink:0;"></i>
+          <span style="font-size:13px;color:var(--text-muted);line-height:1.5;">${order.customer_address}</span>
+        </div>
+      ` : ''}
+    </div>
   `;
   document.getElementById("detailBadges").innerHTML = createBadge(order.delivery_status) + createBadge(order.payment_status);
 
