@@ -10,6 +10,11 @@ const FRESH_FIELDS = ["SET QUANTITY", "SOLD", "TOTAL UNIT"];
 const CACHE_KEY_INVENTORY = "mihira_inventory_cache";
 const CACHE_MAX_AGE_MS = 30 * 60 * 1000; // 30 minutes for product details
 
+// ─── Apply Theme Immediately ──────────────────────────────
+if (localStorage.getItem("mihira_theme") === "dark") {
+  document.documentElement.setAttribute("data-theme", "dark");
+}
+
 const Api = {
   async get(action) {
     const response = await fetch(`${API_URL}?action=${action}&_t=${Date.now()}`, { redirect: "follow" });
@@ -153,7 +158,7 @@ function renderSidebar() {
   if (!sidebarEl) return;
 
   sidebarEl.innerHTML = `
-    <div class="sidebar-brand">
+    <div class="sidebar-brand" style="cursor:pointer;" onclick="window.location.href='pos.html'" title="Go to POS">
       <img src="Logo/MihiraLogo.png" alt="Mihira" style="width:36px;height:36px;border-radius:6px;">
       <span class="brand-text">Mihira</span>
     </div>
@@ -179,12 +184,48 @@ function renderSidebar() {
         <span>Analytics</span>
       </a>
     </nav>
+    <div style="margin-top:auto; padding: 0 8px 12px;">
+      <button id="theme-toggle" class="nav-link" style="width:100%; background:transparent; border:none; cursor:pointer;" title="Toggle Theme">
+        <i class="ri-moon-line" id="theme-icon"></i>
+        <span>Dark Theme</span>
+      </button>
+    </div>
     <button id="sidebar-toggle" class="sidebar-toggle-btn" title="Toggle Sidebar">
       <i class="ri-menu-fold-line"></i>
     </button>
   `;
 
   initSidebar();
+  initThemeToggle();
+}
+
+// ─── Theme Toggle Logic ─────────────────────────────────
+function initThemeToggle() {
+  const btn = document.getElementById("theme-toggle");
+  const icon = document.getElementById("theme-icon");
+  if (!btn || !icon) return;
+
+  const currentTheme = localStorage.getItem("mihira_theme") || "light";
+  if (currentTheme === "dark") {
+    document.documentElement.setAttribute("data-theme", "dark");
+    icon.className = "ri-sun-line";
+    btn.querySelector("span").textContent = "Light Theme";
+  }
+
+  btn.addEventListener("click", () => {
+    const isDark = document.documentElement.getAttribute("data-theme") === "dark";
+    if (isDark) {
+      document.documentElement.removeAttribute("data-theme");
+      localStorage.setItem("mihira_theme", "light");
+      icon.className = "ri-moon-line";
+      btn.querySelector("span").textContent = "Dark Theme";
+    } else {
+      document.documentElement.setAttribute("data-theme", "dark");
+      localStorage.setItem("mihira_theme", "dark");
+      icon.className = "ri-sun-line";
+      btn.querySelector("span").textContent = "Light Theme";
+    }
+  });
 }
 
 // ─── Extract Unique Filter Values ───────────────────────

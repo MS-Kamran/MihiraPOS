@@ -8,16 +8,16 @@ let allInventory = [];
 let charts = {};
 
 const chartColors = {
-  primary: "#c9a882", accent: "#d4b896", success: "#10b981",
-  warning: "#f59e0b", danger: "#ef4444", info: "#06b6d4",
-  purple: "#8b5cf6", pink: "#ec4899", orange: "#f97316",
-  lime: "#84cc16", teal: "#14b8a6",
+  primary: "#1f3d3d", accent: "#c9a882", success: "#10b981",
+  warning: "#f59e0b", danger: "#ef4444", info: "#3b82f6",
+  coral: "#f43f5e", indigo: "#6366f1", emerald: "#14b8a6",
+  violet: "#8b5cf6", slate: "#64748b"
 };
-const palette = Object.values(chartColors);
+const palette = [chartColors.primary, chartColors.accent, chartColors.info, chartColors.emerald, chartColors.coral, chartColors.indigo, chartColors.warning, chartColors.violet, chartColors.slate];
 
-// Chart.js global defaults for dark teal theme
-Chart.defaults.color = "#8a9a8a";
-Chart.defaults.borderColor = "rgba(201,168,130,0.08)";
+// Chart.js global defaults
+Chart.defaults.color = "#64748b";
+Chart.defaults.borderColor = "rgba(100,116,139,0.15)";
 Chart.defaults.font.family = "Inter";
 
 document.addEventListener("DOMContentLoaded", async () => {
@@ -80,8 +80,21 @@ function getFilteredOrders() {
   return allOrders.filter((o) => {
     const orderDate = parseOrderDate(o.date);
     if (!orderDate) return true;
-    if (fromVal && orderDate < new Date(fromVal)) return false;
-    if (toVal) { const toDate = new Date(toVal); toDate.setHours(23,59,59); if (orderDate > toDate) return false; }
+    
+    // Convert orderDate to local midnight for accurate comparison
+    const orderLocalMidnight = new Date(orderDate.getFullYear(), orderDate.getMonth(), orderDate.getDate());
+    
+    if (fromVal) {
+      const fromParts = fromVal.split("-");
+      const fromDate = new Date(fromParts[0], fromParts[1] - 1, fromParts[2]);
+      if (orderLocalMidnight < fromDate) return false;
+    }
+    
+    if (toVal) { 
+      const toParts = toVal.split("-");
+      const toDate = new Date(toParts[0], toParts[1] - 1, toParts[2]);
+      if (orderLocalMidnight > toDate) return false; 
+    }
     return true;
   });
 }
@@ -104,6 +117,7 @@ function refresh() {
   renderSalesTargets(validSalesData);
   renderKPIs(validSalesData);
   renderDailyChart(validSalesData);
+  renderDailyOrdersChart(validSalesData);
   renderMonthlyChart(validSalesData);
   renderTopProducts(validSalesData);
   renderColorsChart(validSalesData);
@@ -371,6 +385,36 @@ function renderDailyChart(data) {
     return dayNames[d.getDay()] + " " + d.getDate();
   });
   createBarWithTrend("dailyChart", labels, sorted.map(k => days[k]), "Revenue");
+}
+
+// ─── Daily Orders (last 14 days) ────────────────────────
+function renderDailyOrdersChart(data) {
+  const days = {};
+  const now = new Date();
+  for (let i = 13; i >= 0; i--) {
+    const d = new Date(now);
+    d.setDate(now.getDate() - i);
+    days[formatDateInput(d)] = new Set();
+  }
+
+  data.forEach((r) => {
+    const d = parseOrderDate(r.date);
+    if (!d) return;
+    const key = formatDateInput(d);
+    if (days[key] !== undefined) {
+      days[key].add(r.order_id);
+    }
+  });
+
+  const sorted = Object.keys(days).sort();
+  const dayNames = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+  const labels = sorted.map(k => {
+    const d = new Date(k);
+    return dayNames[d.getDay()] + " " + d.getDate();
+  });
+  
+  const values = sorted.map(k => days[k].size);
+  createBarWithTrend("dailyOrdersChart", labels, values, "Orders");
 }
 
 // ─── Monthly Revenue ────────────────────────────────────
