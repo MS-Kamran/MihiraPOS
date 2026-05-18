@@ -251,7 +251,77 @@ function createBadge(text, type) {
   return `<span class="badge ${cls}">${text}</span>`;
 }
 
+// ─── PWA & Notifications ─────────────────────────────────
+function initPWA() {
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/service-worker.js')
+      .then(reg => console.log('Service Worker registered', reg))
+      .catch(err => console.error('Service Worker registration failed', err));
+  }
+}
+
+function requestNotificationPermission() {
+  if ('Notification' in window) {
+    if (Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
+  }
+}
+
+function sendNotification(title, options) {
+  if ('Notification' in window && Notification.permission === 'granted') {
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.ready.then(reg => {
+        reg.showNotification(title, options);
+      });
+    } else {
+      new Notification(title, options);
+    }
+  }
+}
+
+// Polling for new orders
+let lastKnownOrderCount = null;
+function startOrderPolling() {
+  // Check every 3 minutes
+  setInterval(async () => {
+    try {
+      const orders = await Api.getOrders();
+      if (lastKnownOrderCount === null) {
+        lastKnownOrderCount = orders.length;
+        return;
+      }
+      if (orders.length > lastKnownOrderCount) {
+        const newOrdersCount = orders.length - lastKnownOrderCount;
+        const latestOrder = orders[orders.length - 1]; 
+        sendNotification('New Order Received! 🛍️', {
+          body: `You have ${newOrdersCount} new order(s)! Latest: ${latestOrder.customer_name}`,
+          icon: '/Logo/MihiraLogo.png',
+          badge: '/Logo/MihiraLogo.png'
+        });
+        showToast(`🔔 ${newOrdersCount} new order(s) received!`);
+        lastKnownOrderCount = orders.length;
+        
+        // Refresh local dashboard if we are on orders page
+        if (window.location.pathname.includes('orders.html') && typeof loadOrders === 'function') {
+           loadOrders();
+        }
+      }
+    } catch (e) {}
+  }, 3 * 60 * 1000); 
+}
+
 // ─── Init on DOM Ready ──────────────────────────────────
 document.addEventListener("DOMContentLoaded", () => {
   renderSidebar();
+  initPWA();
+  
+  // Request permission upon interaction to avoid aggressive popups
+  document.body.addEventListener('click', () => {
+    requestNotificationPermission();
+  }, { once: true });
+  
+  // Setup baseline order count immediately
+  Api.getOrders().then(o => lastKnownOrderCount = o.length).catch(e => {});
+  startOrderPolling();
 });

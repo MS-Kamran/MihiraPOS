@@ -101,6 +101,7 @@ function refresh() {
   const data = getFilteredOrders();
   const validSalesData = data.filter(r => r.delivery_status !== "Returned");
 
+  renderSalesTargets(validSalesData);
   renderKPIs(validSalesData);
   renderDailyChart(validSalesData);
   renderMonthlyChart(validSalesData);
@@ -112,6 +113,112 @@ function refresh() {
   renderPaymentChart(data);
   renderLowStockAlerts();
 }
+
+// ─── Sales Target Tracker ───────────────────────────────
+function renderSalesTargets(data) {
+  const container = document.getElementById("salesTargetContainer");
+  if (!container) return;
+  
+  // Calculate Actuals
+  const now = new Date();
+  const todayStr = formatDateInput(now);
+  const weekAgoStr = formatDateInput(new Date(now.getTime() - 7*24*60*60*1000));
+  const monthStartStr = formatDateInput(new Date(now.getFullYear(), now.getMonth(), 1));
+  
+  let todayRev = 0, weekRev = 0, monthRev = 0;
+  
+  data.forEach(r => {
+    const d = parseOrderDate(r.date);
+    if (!d) return;
+    const dateStr = formatDateInput(d);
+    const rev = parseFloat(r.total_amount) || parseFloat(r.total_price) || 0;
+    
+    if (dateStr === todayStr) todayRev += rev;
+    if (dateStr >= weekAgoStr) weekRev += rev;
+    if (dateStr >= monthStartStr) monthRev += rev;
+  });
+
+  // Calculate Auto Targets (Avg of all data + 10%)
+  let totalRev = 0;
+  let firstDate = new Date();
+  data.forEach(r => {
+    const d = parseOrderDate(r.date);
+    if (!d) return;
+    if (d < firstDate) firstDate = d;
+    totalRev += parseFloat(r.total_amount) || parseFloat(r.total_price) || 0;
+  });
+  
+  const daysDiff = Math.max(1, (now - firstDate) / (1000*60*60*24));
+  const dailyAvg = totalRev / daysDiff;
+  
+  const autoDaily = Math.round(dailyAvg * 1.1);
+  const autoWeekly = Math.round(autoDaily * 7);
+  const autoMonthly = Math.round(autoDaily * 30);
+  
+  // Load Manual Targets if any
+  const targets = JSON.parse(localStorage.getItem("mihira_sales_targets") || "{}");
+  const targetDaily = parseFloat(targets.daily) || autoDaily;
+  const targetWeekly = parseFloat(targets.weekly) || autoWeekly;
+  const targetMonthly = parseFloat(targets.monthly) || autoMonthly;
+
+  const renderBar = (label, actual, target) => {
+    const pct = Math.min(100, Math.round((actual / target) * 100)) || 0;
+    const color = pct >= 100 ? "var(--success)" : "var(--primary)";
+    return `
+      <div style="background:var(--bg); border:1px solid var(--border); padding:12px; border-radius:8px;">
+        <div style="display:flex; justify-content:space-between; font-size:12px; margin-bottom:6px; color:var(--text-muted);">
+          <span>${label}</span>
+          <span>${pct}%</span>
+        </div>
+        <div style="font-weight:600; font-size:14px; margin-bottom:8px; color:var(--text);">
+          ${formatCurrency(actual)} <span style="font-weight:400; font-size:12px; color:var(--text-muted);">/ ${formatCurrency(target)}</span>
+        </div>
+        <div style="width:100%; height:6px; background:rgba(0,0,0,0.05); border-radius:3px; overflow:hidden;">
+          <div style="height:100%; width:${pct}%; background:${color}; border-radius:3px; transition:width 0.5s ease;"></div>
+        </div>
+      </div>
+    `;
+  };
+
+  container.innerHTML = `
+    ${renderBar("Today", todayRev, targetDaily)}
+    ${renderBar("This Week", weekRev, targetWeekly)}
+    ${renderBar("This Month", monthRev, targetMonthly)}
+  `;
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  const btnSetTarget = document.getElementById("btnSetTarget");
+  if (btnSetTarget) {
+    btnSetTarget.addEventListener("click", () => {
+      const targets = JSON.parse(localStorage.getItem("mihira_sales_targets") || "{}");
+      document.getElementById("inputDailyTarget").value = targets.daily || "";
+      document.getElementById("inputWeeklyTarget").value = targets.weekly || "";
+      document.getElementById("inputMonthlyTarget").value = targets.monthly || "";
+      document.getElementById("targetModal").style.display = "flex";
+    });
+  }
+  
+  const btnSaveTarget = document.getElementById("btnSaveTarget");
+  if (btnSaveTarget) {
+    btnSaveTarget.addEventListener("click", () => {
+      const daily = document.getElementById("inputDailyTarget").value;
+      const weekly = document.getElementById("inputWeeklyTarget").value;
+      const monthly = document.getElementById("inputMonthlyTarget").value;
+      
+      const targets = {};
+      if (daily) targets.daily = parseFloat(daily);
+      if (weekly) targets.weekly = parseFloat(weekly);
+      if (monthly) targets.monthly = parseFloat(monthly);
+      
+      localStorage.setItem("mihira_sales_targets", JSON.stringify(targets));
+      document.getElementById("targetModal").style.display = "none";
+      showToast("Sales targets updated");
+      refresh();
+    });
+  }
+});
+
 
 // ─── Low Stock Alerts ───────────────────────────────────
 function renderLowStockAlerts() {
