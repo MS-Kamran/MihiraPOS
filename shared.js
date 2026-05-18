@@ -25,35 +25,9 @@ const Api = {
     return response.json();
   },
 
-  // Cached inventory: renders instantly from cache, then merges fresh stock data
+  // Always returns fresh data from the sheet; cache is only for instant skeleton renders
   async getInventory() {
-    const cached = this._loadCache();
     const freshData = await this.get("getInventory");
-
-    // If cache exists, merge fresh stock fields into cached product details
-    if (cached && cached.length > 0) {
-      const freshMap = {};
-      freshData.forEach(row => {
-        const key = String(row.SERIAL || row.SKU);
-        freshMap[key] = row;
-      });
-
-      // Update cached items with fresh stock and detect new products
-      const updatedCache = freshData.map(freshRow => {
-        const key = String(freshRow.SERIAL || freshRow.SKU);
-        const cachedRow = cached.find(c => String(c.SERIAL || c.SKU) === key);
-        if (!cachedRow) return freshRow;
-        // Keep cached product details, overlay fresh stock fields
-        const merged = { ...cachedRow };
-        FRESH_FIELDS.forEach(f => { merged[f] = freshRow[f]; });
-        return merged;
-      });
-
-      this._saveCache(updatedCache);
-      return updatedCache;
-    }
-
-    // No cache — save fresh data as the new cache
     this._saveCache(freshData);
     return freshData;
   },
