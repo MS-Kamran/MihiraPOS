@@ -41,12 +41,13 @@ function setupTabs() {
 
 async function loadOrders() {
   try {
-    // Load inventory cache for product images
-    inventoryCache = Api.getCachedInventory() || [];
-    
-    const [ordersData, returnsData] = await Promise.all([Api.getOrders(), Api.getReturns()]);
+    // Load inventory for product images and return qty lookups
+    const [ordersData, returnsData, invData] = await Promise.all([
+      Api.getOrders(), Api.getReturns(), Api.getInventory()
+    ]);
     allOrders = ordersData;
     allReturns = returnsData;
+    inventoryCache = invData || [];
     groupOrders();
     renderOrders();
     toggleReturnsPanel();
@@ -154,7 +155,62 @@ function buildItemRows(order) {
   }).join("");
 }
 
+function renderOrderStats() {
+  const fromVal = document.getElementById("dateFrom").value;
+  const toVal = document.getElementById("dateTo").value;
+  const container = document.getElementById("orderStatsRow");
+  if (!container) return;
+
+  const counts = { All: 0, Pending: 0, Dispatched: 0, Delivered: 0, Returned: 0 };
+
+  Object.keys(groupedOrders).forEach(id => {
+    const order = groupedOrders[id];
+    const orderDate = new Date(order.date);
+    if (!isNaN(orderDate.getTime())) {
+      if (fromVal && orderDate < new Date(fromVal)) return;
+      if (toVal) { const toDate = new Date(toVal); toDate.setHours(23, 59, 59); if (orderDate > toDate) return; }
+    }
+    counts.All++;
+    const status = order.delivery_status || "Pending";
+    if (counts[status] !== undefined) counts[status]++;
+  });
+
+  const cardConfig = [
+    { key: "All", icon: "ri-file-list-3-line", color: "#3b82f6" },
+    { key: "Pending", icon: "ri-time-line", color: "#f59e0b" },
+    { key: "Dispatched", icon: "ri-truck-line", color: "#8b5cf6" },
+    { key: "Delivered", icon: "ri-check-double-line", color: "#10b981" },
+    { key: "Returned", icon: "ri-arrow-go-back-line", color: "#ef4444" },
+  ];
+
+  container.innerHTML = cardConfig.map(c => {
+    const isActive = activeTab === c.key;
+    return `
+      <div onclick="switchTab('${c.key}')" style="
+        cursor:pointer; padding:14px 12px; border-radius:10px; text-align:center;
+        background:${isActive ? c.color + '18' : 'var(--panel-solid)'};
+        border:1px solid ${isActive ? c.color + '60' : 'var(--border)'};
+        transition: all 0.2s;
+      ">
+        <i class="${c.icon}" style="font-size:20px; color:${c.color}; display:block; margin-bottom:4px;"></i>
+        <div style="font-size:22px; font-weight:700; color:var(--text);">${counts[c.key]}</div>
+        <div style="font-size:11px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.5px;">${c.key}</div>
+      </div>
+    `;
+  }).join("");
+}
+
+function switchTab(status) {
+  activeTab = status;
+  document.querySelectorAll("#statusTabs .tab-btn").forEach(btn => {
+    btn.classList.toggle("active", btn.dataset.status === status);
+  });
+  renderOrders();
+  toggleReturnsPanel();
+}
+
 function renderOrders() {
+  renderOrderStats();
   const search = document.getElementById("searchOrders").value.toLowerCase();
   const fromVal = document.getElementById("dateFrom").value;
   const toVal = document.getElementById("dateTo").value;
@@ -463,7 +519,14 @@ function openReturnModal(orderId, serial, name, color, size, unitPrice, qty) {
   }
   unitPriceInput.value = unitPrice;
 
-  returnMaxQty = parseInt(qty) || 0;
+  // Validate qty — fallback to inventory set size if order data is corrupted
+  let parsedQty = parseInt(qty) || 0;
+  if (parsedQty <= 0 || parsedQty > 500) {
+    // Look up from inventory to get the correct set size
+    const invItem = inventoryCache.find(i => String(i.SERIAL) === String(serial));
+    parsedQty = invItem ? (parseInt(invItem["CHURI IN A SET"]) || 12) : 12;
+  }
+  returnMaxQty = parsedQty;
   document.getElementById("returnTotalCount").value = returnMaxQty;
   document.getElementById("returnBrokenCount").value = "0";
   document.getElementById("returnNotes").value = "";

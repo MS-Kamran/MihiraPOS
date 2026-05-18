@@ -226,22 +226,37 @@ function renderWeeklyChart(data) {
 function renderTopProducts(data) {
   const products = {};
   data.forEach((r) => {
-    const key = r.serial || r.category || "Unknown";
-    products[key] = (products[key] || 0) + (parseInt(r.quantity) || 0);
+    // Use category (product NAME), not serial code
+    const rawNames = String(r.category || "Unknown");
+    const rawQtys = String(r.quantity || "1");
+    const names = rawNames.split(",").map(s => s.trim());
+    const qtys = rawQtys.split(",").map(s => parseInt(s.trim()) || 1);
+    names.forEach((name, idx) => {
+      if (!name) return;
+      const qty = qtys[idx] || qtys[0] || 1;
+      products[name] = (products[name] || 0) + qty;
+    });
   });
   const sorted = Object.entries(products).sort((a, b) => b[1] - a[1]).slice(0, 10);
   createHorizontalBar("topProductsChart", sorted.map((s) => s[0]), sorted.map((s) => s[1]));
 }
 
-// ─── Trending Colors ────────────────────────────────────
+// ─── Trending Colors (Top 10) ───────────────────────────
 function renderColorsChart(data) {
   const colors = {};
   data.forEach((r) => {
-    const c = r.color || "Unknown";
-    colors[c] = (colors[c] || 0) + (parseInt(r.quantity) || 0);
+    const rawColors = String(r.color || "Unknown");
+    const rawQtys = String(r.quantity || "1");
+    const colorList = rawColors.split(",").map(s => s.trim());
+    const qtys = rawQtys.split(",").map(s => parseInt(s.trim()) || 1);
+    colorList.forEach((c, idx) => {
+      if (!c) return;
+      const qty = qtys[idx] || qtys[0] || 1;
+      colors[c] = (colors[c] || 0) + qty;
+    });
   });
-  const sorted = Object.entries(colors).sort((a, b) => b[1] - a[1]);
-  createDoughnut("colorsChart", sorted.map((s) => s[0]), sorted.map((s) => s[1]));
+  const sorted = Object.entries(colors).sort((a, b) => b[1] - a[1]).slice(0, 10);
+  createHorizontalBar("colorsChart", sorted.map((s) => s[0]), sorted.map((s) => s[1]));
 }
 
 // ─── Delivery Pipeline ──────────────────────────────────
