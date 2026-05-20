@@ -17,7 +17,11 @@ if (localStorage.getItem("mihira_theme") === "dark") {
 
 const Api = {
   async get(action) {
-    const response = await fetch(`${API_URL}?action=${action}&_t=${Date.now()}`, { redirect: "follow" });
+    const response = await fetch(`${API_URL}?action=${action}&_t=${Date.now()}`, { 
+      redirect: "follow",
+      cache: "no-store",
+      headers: { "Pragma": "no-cache", "Cache-Control": "no-cache" }
+    });
     return response.json();
   },
 

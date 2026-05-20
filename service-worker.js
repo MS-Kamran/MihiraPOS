@@ -45,7 +45,11 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('fetch', (event) => {
   // Only cache GET requests and skip API calls
-  if (event.request.method !== 'GET' || event.request.url.includes('script.google.com')) {
+  if (event.request.method !== 'GET' || 
+      event.request.url.includes('script.google') || 
+      event.request.url.includes('googleusercontent') ||
+      event.request.url.includes('action=') || 
+      event.request.url.includes('_t=')) {
     return;
   }
   
