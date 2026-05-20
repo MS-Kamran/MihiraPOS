@@ -345,16 +345,37 @@ function destroyChart(id) { if (charts[id]) { charts[id].destroy(); } }
 function createBarWithTrend(canvasId, labels, values, label) {
   destroyChart(canvasId);
   const ctx = document.getElementById(canvasId).getContext("2d");
+
+  // Calculate linear trend line
+  const n = values.length;
+  let trendData = [...values];
+  if (n > 1) {
+    let sumX = 0, sumY = 0, sumXY = 0, sumXX = 0;
+    for (let i = 0; i < n; i++) {
+      sumX += i; sumY += values[i]; sumXY += i * values[i]; sumXX += i * i;
+    }
+    const slope = (n * sumXY - sumX * sumY) / (n * sumXX - sumX * sumX);
+    const intercept = (sumY - slope * sumX) / n;
+    trendData = values.map((_, i) => Math.max(0, slope * i + intercept));
+  }
+
   charts[canvasId] = new Chart(ctx, {
     type: "bar",
     data: {
       labels,
       datasets: [
         { label, data: values, backgroundColor: chartColors.primary + "80", borderColor: chartColors.primary, borderWidth: 1, borderRadius: 4, order: 2 },
-        { label: "Trend", data: values, type: "line", borderColor: chartColors.success, borderWidth: 2, pointRadius: 3, pointBackgroundColor: chartColors.success, tension: 0.4, order: 1 },
+        { label: "Trend", data: trendData, type: "line", borderColor: chartColors.success, borderWidth: 2, pointRadius: 0, pointBackgroundColor: chartColors.success, tension: 0, order: 1 },
       ],
     },
-    options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } },
+    options: { 
+      responsive: true, 
+      plugins: { legend: { display: false } }, 
+      scales: { 
+        x: { ticks: { autoSkip: false, maxRotation: 45, minRotation: 45 } },
+        y: { beginAtZero: true } 
+      } 
+    },
   });
 }
 
@@ -458,16 +479,23 @@ function renderTopProducts(data) {
   data.forEach((r) => {
     const rawNames = String(r.category || "Unknown");
     const rawQtys = String(r.quantity || "1");
+    const rawSerials = String(r.serial || "");
     const names = rawNames.split(",").map(s => s.trim());
     const qtys = rawQtys.split(",").map(s => parseInt(s.trim()) || 1);
+    const serials = rawSerials.split(",").map(s => s.trim());
+
     names.forEach((name, idx) => {
       if (!name) return;
-      const qty = qtys[idx] || qtys[0] || 1;
-      products[name] = (products[name] || 0) + qty;
+      let qty = qtys[idx] || qtys[0] || 1;
+      const serial = serials[idx] || serials[0];
+      const invItem = allInventory.find(i => String(i.SERIAL) === serial);
+      const setSize = invItem ? (parseInt(invItem["CHURI IN A SET"]) || 1) : 1;
+      if (qty > 500 || qty <= 0) qty = setSize; // reject corrupt data
+      products[name] = (products[name] || 0) + (qty / setSize);
     });
   });
   const sorted = Object.entries(products).sort((a, b) => b[1] - a[1]).slice(0, 10);
-  createHorizontalBar("topProductsChart", sorted.map((s) => s[0]), sorted.map((s) => s[1]));
+  createHorizontalBar("topProductsChart", sorted.map((s) => s[0]), sorted.map((s) => Math.round(s[1] * 10) / 10));
 }
 
 // ─── Trending Colors (Top 10) ───────────────────────────
@@ -476,16 +504,23 @@ function renderColorsChart(data) {
   data.forEach((r) => {
     const rawColors = String(r.color || "Unknown");
     const rawQtys = String(r.quantity || "1");
+    const rawSerials = String(r.serial || "");
     const colorList = rawColors.split(",").map(s => s.trim());
     const qtys = rawQtys.split(",").map(s => parseInt(s.trim()) || 1);
+    const serials = rawSerials.split(",").map(s => s.trim());
+
     colorList.forEach((c, idx) => {
       if (!c) return;
-      const qty = qtys[idx] || qtys[0] || 1;
-      colors[c] = (colors[c] || 0) + qty;
+      let qty = qtys[idx] || qtys[0] || 1;
+      const serial = serials[idx] || serials[0];
+      const invItem = allInventory.find(i => String(i.SERIAL) === serial);
+      const setSize = invItem ? (parseInt(invItem["CHURI IN A SET"]) || 1) : 1;
+      if (qty > 500 || qty <= 0) qty = setSize; // reject corrupt data
+      colors[c] = (colors[c] || 0) + (qty / setSize);
     });
   });
   const sorted = Object.entries(colors).sort((a, b) => b[1] - a[1]).slice(0, 10);
-  createHorizontalBar("colorsChart", sorted.map((s) => s[0]), sorted.map((s) => s[1]));
+  createHorizontalBar("colorsChart", sorted.map((s) => s[0]), sorted.map((s) => Math.round(s[1] * 10) / 10));
 }
 
 // ─── Top 5 Customers ────────────────────────────────────
