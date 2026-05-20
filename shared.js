@@ -19,8 +19,7 @@ const Api = {
   async get(action) {
     const response = await fetch(`${API_URL}?action=${action}&_t=${Date.now()}`, { 
       redirect: "follow",
-      cache: "no-store",
-      headers: { "Pragma": "no-cache", "Cache-Control": "no-cache" }
+      cache: "no-store"
     });
     return response.json();
   },
