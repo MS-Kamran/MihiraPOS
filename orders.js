@@ -161,7 +161,7 @@ function renderOrderStats() {
   const container = document.getElementById("orderStatsRow");
   if (!container) return;
 
-  const counts = { All: 0, Pending: 0, Dispatched: 0, Delivered: 0, Returned: 0 };
+  const counts = { All: 0, Pending: 0, Dispatched: 0, Delivered: 0, Returned: 0, Cancelled: 0 };
 
   Object.keys(groupedOrders).forEach(id => {
     const order = groupedOrders[id];
@@ -181,6 +181,7 @@ function renderOrderStats() {
     { key: "Dispatched", icon: "ri-truck-line", color: "#8b5cf6" },
     { key: "Delivered", icon: "ri-check-double-line", color: "#10b981" },
     { key: "Returned", icon: "ri-arrow-go-back-line", color: "#ef4444" },
+    { key: "Cancelled", icon: "ri-close-circle-line", color: "#64748b" },
   ];
 
   container.innerHTML = cardConfig.map(c => {
@@ -794,7 +795,15 @@ function openOrderDetail(orderId) {
   if (order.payment_status !== "Paid") {
     actionsHtml += `<button class="btn btn-success" style="flex:1" onclick="closeOrderDetail();openPaymentModal('${id}')"><i class="ri-money-dollar-circle-line"></i> Pay</button>`;
   }
+  // Edit Products — only for Pending orders
+  if (order.delivery_status === "Pending") {
+    actionsHtml += `<button class="btn btn-outline" style="flex:1;border:1px solid var(--info);background:transparent;color:var(--info)" onclick="closeOrderDetail();openEditOrderModal('${id}')"><i class="ri-edit-line"></i> Edit</button>`;
+  }
   actionsHtml += `<button class="btn btn-outline" style="flex:1;border:1px solid var(--border);background:transparent;color:var(--text)" onclick="closeOrderDetail();openUpdateModal('${id}')"><i class="ri-settings-4-line"></i> Update</button>`;
+  // Cancel Order — only for non-delivered, non-cancelled orders
+  if (order.delivery_status !== "Delivered" && order.delivery_status !== "Cancelled" && order.delivery_status !== "Returned") {
+    actionsHtml += `<button class="btn btn-danger" style="flex:1" onclick="closeOrderDetail();cancelOrder('${id}')"><i class="ri-close-circle-line"></i> Cancel</button>`;
+  }
   document.getElementById("detailActions").innerHTML = actionsHtml;
 
   document.getElementById("orderDetailModal").classList.add("open");
@@ -849,4 +858,137 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("orderDetailModal")?.addEventListener("click", (e) => {
     if (e.target.classList.contains("modal-overlay")) closeOrderDetail();
   });
+  document.getElementById("editOrderModal")?.addEventListener("click", (e) => {
+    if (e.target.classList.contains("modal-overlay")) closeEditOrderModal();
+  });
 });
+
+// ─── Cancel Order ───────────────────────────────────────
+async function cancelOrder(orderId) {
+  if (!confirm(`Are you sure you want to cancel order ${orderId}?\n\nThe customer data will be kept, but this order will not count toward revenue.`)) return;
+
+  try {
+    const result = await Api.updateOrder({
+      order_id: orderId,
+      delivery_status: "Cancelled",
+    });
+    if (!result.success) throw new Error(result.error);
+    showToast("Order cancelled", "warning");
+    if (groupedOrders[orderId]) {
+      groupedOrders[orderId].delivery_status = "Cancelled";
+      groupedOrders[orderId].rows.forEach(r => r.delivery_status = "Cancelled");
+    }
+    renderOrders();
+  } catch (err) {
+    showToast(err.message || "Cancel failed", "error");
+  }
+}
+
+// ─── Edit Order Products ────────────────────────────────
+function openEditOrderModal(orderId) {
+  const order = groupedOrders[orderId];
+  if (!order) return;
+
+  const firstRow = order.rows[0];
+  const serials = safeStr(firstRow.serial).split(",").map(s => s.trim());
+  const categories = safeStr(firstRow.category).split(",").map(s => s.trim());
+  const colors = safeStr(firstRow.color).split(",").map(s => s.trim());
+  const sizes = safeStr(firstRow.size).split(",").map(s => s.trim());
+  const quantities = safeStr(firstRow.quantity).split(",").map(s => s.trim());
+  const unitPrices = safeStr(firstRow.unit_price).split(",").map(s => s.trim());
+
+  document.getElementById("editOrderId").value = orderId;
+  const container = document.getElementById("editItemsContainer");
+
+  container.innerHTML = serials.map((serial, idx) => {
+    const cat = categories[idx] || categories[0] || "";
+    const col = colors[idx] || colors[0] || "";
+    const sz = sizes[idx] || sizes[0] || "";
+    const qty = quantities[idx] || quantities[0] || "1";
+    const price = unitPrices[idx] || unitPrices[0] || "0";
+
+    return `
+      <div class="edit-item-row" style="background:var(--input-bg);padding:12px;border-radius:8px;border:1px solid var(--border);display:flex;flex-direction:column;gap:8px;" data-idx="${idx}">
+        <div style="font-size:13px;font-weight:600;color:var(--text);">${cat} · ${col} · Size ${sz}</div>
+        <div style="font-size:11px;color:var(--text-muted);">Serial: ${serial}</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+          <div class="form-group" style="margin:0;">
+            <label style="font-size:11px;">Quantity</label>
+            <input type="number" class="edit-qty" value="${qty}" min="1" data-serial="${serial}" style="padding:8px;">
+          </div>
+          <div class="form-group" style="margin:0;">
+            <label style="font-size:11px;">Unit Price (৳)</label>
+            <input type="number" class="edit-price" value="${price}" min="0" data-serial="${serial}" style="padding:8px;">
+          </div>
+        </div>
+      </div>
+    `;
+  }).join("");
+
+  document.getElementById("editOrderModal").classList.add("open");
+}
+
+function closeEditOrderModal() {
+  document.getElementById("editOrderModal").classList.remove("open");
+}
+
+async function saveEditOrder() {
+  const orderId = document.getElementById("editOrderId").value;
+  const order = groupedOrders[orderId];
+  if (!order) return;
+
+  const qtyInputs = document.querySelectorAll("#editItemsContainer .edit-qty");
+  const priceInputs = document.querySelectorAll("#editItemsContainer .edit-price");
+
+  const newQuantities = Array.from(qtyInputs).map(i => i.value);
+  const newPrices = Array.from(priceInputs).map(i => i.value);
+
+  // Calculate new total
+  let newTotal = 0;
+  newQuantities.forEach((q, i) => {
+    newTotal += (parseInt(q) || 0) * (parseFloat(newPrices[i]) || 0);
+  });
+
+  // Apply discount if any
+  const discount = order.discount || "";
+  if (discount.includes("%")) {
+    const pct = parseFloat(discount) || 0;
+    newTotal = newTotal * (1 - pct / 100);
+  } else if (discount && parseFloat(discount)) {
+    newTotal -= parseFloat(discount);
+  }
+  newTotal = Math.max(0, Math.round(newTotal));
+
+  const btn = document.getElementById("saveEditOrderBtn");
+  btn.disabled = true;
+
+  try {
+    const result = await Api.updateOrder({
+      order_id: orderId,
+      quantity: newQuantities.join(","),
+      unit_price: newPrices.join(","),
+      total_amount: newTotal,
+      due_amount: Math.max(0, newTotal - (order.paid_amount || 0)),
+    });
+    if (!result.success) throw new Error(result.error);
+    showToast("Order products updated", "success");
+
+    // Update local state
+    const firstRow = order.rows[0];
+    firstRow.quantity = newQuantities.join(",");
+    firstRow.unit_price = newPrices.join(",");
+    order.total = newTotal;
+    order.due_amount = Math.max(0, newTotal - (order.paid_amount || 0));
+    order.rows.forEach(r => {
+      r.total_amount = newTotal;
+      r.due_amount = order.due_amount;
+    });
+
+    closeEditOrderModal();
+    renderOrders();
+  } catch (err) {
+    showToast(err.message || "Edit failed", "error");
+  } finally {
+    btn.disabled = false;
+  }
+}

@@ -28,6 +28,7 @@
             <button class="tab-btn" data-status="Dispatched">Dispatched</button>
             <button class="tab-btn" data-status="Delivered">Delivered</button>
             <button class="tab-btn" data-status="Returned">Returned</button>
+            <button class="tab-btn" data-status="Cancelled">Cancelled</button>
         </div>
 
         <div class="controls" style="display: flex; gap: 12px; flex-wrap: wrap;">
@@ -62,7 +63,7 @@
                 </div>
                 <button class="btn-icon" onclick="closeOrderDetail()"><i class="ri-close-line"></i></button>
             </div>
-            <div class="modal-body" style="gap:16px;">
+            <div class="modal-body" style="gap:16px;overflow-y:auto;max-height:calc(90vh - 80px);">
                 <!-- Customer & Status -->
                 <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
                     <div id="detailCustomerInfo" style="font-size:13px;"></div>
@@ -84,7 +85,7 @@
 
                 <!-- Financial Summary -->
                 <div style="border-top:1px solid var(--border);padding-top:12px;">
-                    <div style="background:rgba(0,0,0,0.2);padding:14px;border-radius:8px;">
+                    <div style="background:var(--input-bg);padding:14px;border-radius:8px;border:1px solid var(--border);">
                         <div id="detailFinancials" style="display:flex;flex-direction:column;gap:6px;font-size:13px;"></div>
                     </div>
                 </div>
@@ -107,7 +108,7 @@
             <div class="modal-body">
                 <input type="hidden" id="updateOrderId">
                 <div class="form-group"><label>Delivery Status</label>
-                    <select id="updateDelivery"><option>Pending</option><option>Dispatched</option><option>Delivered</option><option>Returned</option></select>
+                    <select id="updateDelivery"><option>Pending</option><option>Dispatched</option><option>Delivered</option><option>Returned</option><option>Cancelled</option></select>
                 </div>
                 <div class="form-group"><label>Payment Status</label>
                     <select id="updatePayStatus"><option>Paid</option><option>Unpaid</option><option>Partial</option></select>
@@ -223,6 +224,21 @@
         <div style="display:flex;gap:8px">
             <button class="btn btn-success" onclick="executeRebuild()" style="flex:1"><i class="ri-check-line"></i> Rebuild Set</button>
             <button class="btn btn-ghost" onclick="dismissRebuild()" style="flex:1">Dismiss</button>
+        </div>
+    </div>
+
+    <!-- Edit Order Modal -->
+    <div class="modal-overlay" id="editOrderModal">
+        <div class="modal" style="max-width:500px;">
+            <div class="modal-header">
+                <h2>Edit Order Products</h2>
+                <button class="btn-icon" onclick="closeEditOrderModal()"><i class="ri-close-line"></i></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="editOrderId">
+                <div id="editItemsContainer" style="display:flex;flex-direction:column;gap:10px;max-height:400px;overflow-y:auto;margin-bottom:16px;"></div>
+                <button class="btn btn-primary btn-large" id="saveEditOrderBtn" onclick="saveEditOrder()">Save Changes</button>
+            </div>
         </div>
     </div>
 

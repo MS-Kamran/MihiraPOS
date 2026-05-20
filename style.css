@@ -2,7 +2,7 @@
     --bg: #f8fafc;
     --panel: #ffffff;
     --panel-solid: #ffffff;
-    --border: #e2e8f0;
+    --border: #cbd5e1;
     --primary: #1f3d3d;
     --primary-hover: #162b2b;
     --accent: #c9a882;
@@ -11,9 +11,9 @@
     --danger: #ef4444;
     --info: #06b6d4;
     --text: #0f172a;
-    --text-muted: #64748b;
+    --text-muted: #475569;
     --input-bg: #f1f5f9;
-    --input-border: #cbd5e1;
+    --input-border: #94a3b8;
     --radius: 12px;
     --radius-sm: 6px;
     --shadow: 0 4px 20px rgba(0,0,0,0.08);

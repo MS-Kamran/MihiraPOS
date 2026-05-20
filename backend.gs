@@ -95,7 +95,6 @@ function handleUpdateOrder(payload) {
     return createJsonResponse({ error: "order_id column not found" });
   }
 
-  // Columns we allow updating
   var allowedFields = [
     "delivery_status",
     "payment_status",
@@ -104,6 +103,9 @@ function handleUpdateOrder(payload) {
     "payment_method",
     "notes",
     "action",
+    "quantity",
+    "unit_price",
+    "total_amount",
   ];
 
   var updatedCount = 0;

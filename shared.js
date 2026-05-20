@@ -284,6 +284,7 @@ function createBadge(text, type) {
     Dispatched: "badge-info",
     Delivered: "badge-success",
     Returned: "badge-danger",
+    Cancelled: "badge-default",
     Paid: "badge-success",
     Unpaid: "badge-danger",
     Partial: "badge-warning",

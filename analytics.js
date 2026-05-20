@@ -112,7 +112,7 @@ function sumQuantities(qtyStr) {
 
 function refresh() {
   const data = getFilteredOrders();
-  const validSalesData = data.filter(r => r.delivery_status !== "Returned");
+  const validSalesData = data.filter(r => r.delivery_status !== "Returned" && r.delivery_status !== "Cancelled");
 
   renderSalesTargets(validSalesData);
   renderKPIs(validSalesData);
@@ -307,12 +307,33 @@ function renderKPIs(data) {
   const todayRevenue = todayOrders.reduce((s, r) => s + (parseFloat(r.total_amount) || parseFloat(r.total_price) || 0), 0);
   const todayOrderCount = new Set(todayOrders.map(r => r.order_id)).size;
 
+  // Compute days in current filter range for accurate averages
+  const fromVal = document.getElementById("dateFrom").value;
+  const toVal = document.getElementById("dateTo").value;
+  let filterDays = 1;
+  if (fromVal && toVal) {
+    const fp = fromVal.split("-"), tp = toVal.split("-");
+    const fd = new Date(fp[0], fp[1] - 1, fp[2]);
+    const td = new Date(tp[0], tp[1] - 1, tp[2]);
+    filterDays = Math.max(1, Math.round((td - fd) / (1000 * 60 * 60 * 24)) + 1);
+  } else {
+    // "All" — count distinct order days
+    const daySet = new Set();
+    data.forEach(r => {
+      const d = parseOrderDate(r.date);
+      if (d) daySet.add(formatDateInput(d));
+    });
+    filterDays = Math.max(1, daySet.size);
+  }
+  const avgDailyOrders = Math.round((uniqueOrders.size / filterDays) * 10) / 10;
+
   document.getElementById("kpiRow").innerHTML = `
     <div class="stat-card glass"><div class="stat-icon gold"><i class="ri-calendar-check-line"></i></div><div class="stat-label">Today's Revenue</div><div class="stat-value">${formatCurrency(todayRevenue)}</div></div>
     <div class="stat-card glass"><div class="stat-icon cyan"><i class="ri-shopping-bag-line"></i></div><div class="stat-label">Today's Orders</div><div class="stat-value">${todayOrderCount}</div></div>
     <div class="stat-card glass"><div class="stat-icon green"><i class="ri-money-dollar-circle-line"></i></div><div class="stat-label">Total Revenue</div><div class="stat-value">${formatCurrency(totalRevenue)}</div></div>
-    <div class="stat-card glass"><div class="stat-icon blue"><i class="ri-line-chart-line"></i></div><div class="stat-label">AOV</div><div class="stat-value">${formatCurrency(aov)}</div></div>
+    <div class="stat-card glass"><div class="stat-icon blue"><i class="ri-line-chart-line"></i></div><div class="stat-label">Avg Order Value</div><div class="stat-value">${formatCurrency(aov)}</div></div>
     <div class="stat-card glass"><div class="stat-icon cyan"><i class="ri-file-list-3-line"></i></div><div class="stat-label">Total Orders</div><div class="stat-value">${uniqueOrders.size}</div></div>
+    <div class="stat-card glass"><div class="stat-icon indigo"><i class="ri-bar-chart-2-line"></i></div><div class="stat-label">Avg Daily Orders</div><div class="stat-value">${avgDailyOrders}</div></div>
     <div class="stat-card glass"><div class="stat-icon yellow"><i class="ri-stack-line"></i></div><div class="stat-label">Sets Sold</div><div class="stat-value">${totalSetsSold}</div></div>
     <div class="stat-card glass"><div class="stat-icon red"><i class="ri-error-warning-line"></i></div><div class="stat-label">Pending Due</div><div class="stat-value">${formatCurrency(pendingCollection)}</div></div>
     <div class="stat-card glass"><div class="stat-icon green"><i class="ri-user-heart-line"></i></div><div class="stat-label">Repeat Customers</div><div class="stat-value">${repeatCustomers}</div></div>
