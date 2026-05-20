@@ -130,7 +130,6 @@ function refresh() {
   renderMonthlyChart(validSalesData);
   renderTopProducts(validSalesData);
   renderColorsChart(validSalesData);
-  renderTopCustomers(validSalesData);
   renderRevenueVsCollection(validSalesData);
   renderDeliveryChart(data);
   renderPaymentChart(data);
@@ -299,13 +298,33 @@ function renderKPIs(data) {
   const pendingCollection = data.filter((r) => r.payment_status !== "Paid").reduce((s, r) => s + (parseFloat(r.due_amount) || 0), 0);
   const totalPaid = data.reduce((s, r) => s + (parseFloat(r.paid_amount) || 0), 0);
 
-  // Repeat customers (>1 order)
-  const customerOrderCount = {};
+  // Customer Analysis
+  const customerOrders = {};
+  const customerSpend = {};
   data.forEach(r => {
     const phone = r.customer_phone || r.customer_id;
-    if (phone) customerOrderCount[phone] = (customerOrderCount[phone] || 0) + 1;
+    if (phone) {
+      if (!customerOrders[phone]) customerOrders[phone] = new Set();
+      customerOrders[phone].add(r.order_id);
+      // To avoid double-counting spend for the same order_id since data has row per item,
+      // we should only add the total_amount once per order_id. Wait!
+      // In the pos.js and backend.gs, total_amount is the order total. If it's duplicated across items,
+      // we shouldn't sum it per item! Wait, previously totalRevenue was calculated by dividing? No, totalRevenue was calculated using uniqueOrders.
+    }
   });
-  const repeatCustomers = Object.values(customerOrderCount).filter(c => c > 1).length;
+  
+  // Recalculate customer spend accurately by iterating unique orders
+  uniqueOrders.forEach(order => {
+    const phone = order.customer_phone || order.customer_id;
+    if (phone) {
+      customerSpend[phone] = (customerSpend[phone] || 0) + (parseFloat(order.total_amount) || parseFloat(order.total_price) || 0);
+    }
+  });
+
+  const repeatCustomers = Object.values(customerOrders).filter(s => s.size > 1).length;
+  const totalCustomers = Object.keys(customerSpend).length;
+  const avgCustomerSpend = totalCustomers > 0 ? (totalRevenue / totalCustomers) : 0;
+  const aboveAvgCustomers = Object.values(customerSpend).filter(spend => spend > avgCustomerSpend).length;
 
 
   // Compute days in current filter range for accurate averages
@@ -336,6 +355,7 @@ function renderKPIs(data) {
     <div class="stat-card glass"><div class="stat-icon yellow"><i class="ri-stack-line"></i></div><div class="stat-label">Sets Sold</div><div class="stat-value">${totalSetsSold}</div></div>
     <div class="stat-card glass"><div class="stat-icon red"><i class="ri-error-warning-line"></i></div><div class="stat-label">Pending Due</div><div class="stat-value">${formatCurrency(pendingCollection)}</div></div>
     <div class="stat-card glass"><div class="stat-icon green"><i class="ri-user-heart-line"></i></div><div class="stat-label">Repeat Customers</div><div class="stat-value">${repeatCustomers}</div></div>
+    <div class="stat-card glass"><div class="stat-icon violet"><i class="ri-star-smile-line"></i></div><div class="stat-label">Above Avg Customers</div><div class="stat-value">${aboveAvgCustomers}</div></div>
   `;
 }
 
@@ -395,7 +415,7 @@ function createHorizontalBar(canvasId, labels, values) {
   charts[canvasId] = new Chart(ctx, {
     type: "bar",
     data: { labels, datasets: [{ data: values, backgroundColor: palette.slice(0, labels.length), borderRadius: 4, borderWidth: 0 }] },
-    options: { indexAxis: "y", responsive: true, plugins: { legend: { display: false } }, scales: { x: { beginAtZero: true } } },
+    options: { indexAxis: "y", responsive: true, plugins: { legend: { display: false } }, scales: { x: { beginAtZero: true }, y: { ticks: { autoSkip: false } } } },
   });
 }
 
@@ -523,18 +543,7 @@ function renderColorsChart(data) {
   createHorizontalBar("colorsChart", sorted.map((s) => s[0]), sorted.map((s) => Math.round(s[1] * 10) / 10));
 }
 
-// ─── Top 5 Customers ────────────────────────────────────
-function renderTopCustomers(data) {
-  const customers = {};
-  data.forEach(r => {
-    const name = r.customer_name || "Unknown";
-    const phone = String(r.customer_phone || "");
-    const key = `${name} (${phone.slice(-4) || "?"})`;
-    customers[key] = (customers[key] || 0) + (parseFloat(r.total_amount) || parseFloat(r.total_price) || 0);
-  });
-  const sorted = Object.entries(customers).sort((a, b) => b[1] - a[1]).slice(0, 5);
-  createHorizontalBar("topCustomersChart", sorted.map(s => s[0]), sorted.map(s => s[1]));
-}
+
 
 // ─── Revenue vs Collection ──────────────────────────────
 function renderRevenueVsCollection(data) {
