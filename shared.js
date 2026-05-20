@@ -186,6 +186,10 @@ function renderSidebar() {
         <i class="ri-bar-chart-grouped-line"></i>
         <span>Analytics</span>
       </a>
+      <button class="nav-link" onclick="clearSystemCache()" style="background:transparent; border:none; width:100%; cursor:pointer; text-align:left; padding:12px 16px; border-radius:8px; display:flex; align-items:center; gap:12px;" data-tooltip="Clear Cache">
+        <i class="ri-refresh-line" style="font-size:20px; color:var(--text-muted);"></i>
+        <span style="font-weight:500;">Clear Cache</span>
+      </button>
     </nav>
     <div style="margin-top:auto; padding: 0 8px 12px;">
       <button id="theme-toggle" class="nav-link" style="width:100%; background:transparent; border:none; cursor:pointer;" title="Toggle Theme">
@@ -355,6 +359,32 @@ function startOrderPolling() {
     } catch (e) {}
   }, 3 * 60 * 1000); 
 }
+
+window.clearSystemCache = async function() {
+  if (confirm("Clear all cache and reload the system freshly from the server?")) {
+    // 1. Clear LocalStorage caches
+    localStorage.removeItem(CACHE_KEY_INVENTORY);
+    
+    // 2. Clear Browser Cache Storage (Service Worker Caches)
+    if ('caches' in window) {
+      try {
+        const keys = await caches.keys();
+        await Promise.all(keys.map(key => caches.delete(key)));
+      } catch (e) {}
+    }
+    
+    // 3. Unregister Service Workers
+    if ('serviceWorker' in navigator) {
+      try {
+        const registrations = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(registrations.map(reg => reg.unregister()));
+      } catch (e) {}
+    }
+    
+    // 4. Force reload page
+    window.location.reload();
+  }
+};
 
 // ─── Init on DOM Ready ──────────────────────────────────
 document.addEventListener("DOMContentLoaded", () => {
