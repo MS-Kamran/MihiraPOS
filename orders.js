@@ -54,7 +54,8 @@ async function loadOrders() {
     document.getElementById("loading").classList.add("hidden");
     document.getElementById("orders-list").classList.remove("hidden");
   } catch (err) {
-    showToast("Failed to load orders", "error");
+    console.error("loadOrders failed:", err);
+    document.getElementById("loading").innerHTML = `<div style="text-align:center;padding:40px;"><i class="ri-wifi-off-line" style="font-size:48px;color:var(--text-muted);display:block;margin-bottom:12px;"></i><p style="color:var(--text-muted);font-size:14px;">Failed to load orders. Check your connection.</p><button class="btn btn-primary" onclick="loadOrders()" style="margin-top:12px;"><i class="ri-refresh-line"></i> Retry</button></div>`;
   }
 }
 

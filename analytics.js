@@ -373,7 +373,7 @@ function createBarWithTrend(canvasId, labels, values, label) {
   destroyChart(canvasId);
   const ctx = document.getElementById(canvasId).getContext("2d");
 
-  // Calculate linear trend line
+  // Linear regression trend line: y = mx + b
   const n = values.length;
   let trendData = [...values];
   if (n > 1) {
@@ -386,43 +386,120 @@ function createBarWithTrend(canvasId, labels, values, label) {
     trendData = values.map((_, i) => Math.max(0, slope * i + intercept));
   }
 
+  // Inline plugin: draw value labels on top of each bar
+  const barLabelPlugin = {
+    id: 'barLabels',
+    afterDatasetsDraw(chart) {
+      const ctx = chart.ctx;
+      chart.data.datasets.forEach((dataset, di) => {
+        if (dataset.type === 'line') return;
+        chart.getDatasetMeta(di).data.forEach((bar, i) => {
+          const val = dataset.data[i];
+          if (!val) return;
+          const txt = val >= 1000 ? (val / 1000).toFixed(1) + 'k' : String(Math.round(val));
+          ctx.save();
+          ctx.font = 'bold 9px Inter, sans-serif';
+          ctx.fillStyle = 'rgba(255,255,255,0.85)';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'bottom';
+          ctx.fillText(txt, bar.x, bar.y - 2);
+          ctx.restore();
+        });
+      });
+    }
+  };
+
   charts[canvasId] = new Chart(ctx, {
     type: "bar",
     data: {
       labels,
       datasets: [
         { label, data: values, backgroundColor: chartColors.primary + "80", borderColor: chartColors.primary, borderWidth: 1, borderRadius: 4, order: 2 },
-        { label: "Trend", data: trendData, type: "line", borderColor: chartColors.success, borderWidth: 2, pointRadius: 0, pointBackgroundColor: chartColors.success, tension: 0, order: 1 },
+        { label: "Trend", data: trendData, type: "line", borderColor: chartColors.success, borderWidth: 2, pointRadius: 0, tension: 0, order: 1 },
       ],
     },
-    options: { 
-      responsive: true, 
-      plugins: { legend: { display: false } }, 
-      scales: { 
+    options: {
+      responsive: true,
+      plugins: { legend: { display: false } },
+      scales: {
         x: { ticks: { autoSkip: false, maxRotation: 45, minRotation: 45 } },
-        y: { beginAtZero: true } 
-      } 
+        y: { beginAtZero: true }
+      }
     },
+    plugins: [barLabelPlugin],
   });
 }
 
 function createDoughnut(canvasId, labels, values) {
   destroyChart(canvasId);
   const ctx = document.getElementById(canvasId).getContext("2d");
+
+  // Inline plugin: draw percentage labels inside each doughnut slice
+  const doughnutLabelPlugin = {
+    id: 'doughnutLabels',
+    afterDatasetsDraw(chart) {
+      const ctx = chart.ctx;
+      const dataset = chart.data.datasets[0];
+      const total = dataset.data.reduce((a, b) => a + b, 0);
+      if (!total) return;
+      chart.getDatasetMeta(0).data.forEach((arc, i) => {
+        const val = dataset.data[i];
+        if (!val) return;
+        const pct = Math.round(val / total * 100);
+        if (pct < 5) return; // skip tiny slices to avoid overlap
+        const angle = (arc.startAngle + arc.endAngle) / 2;
+        const r = (arc.innerRadius + arc.outerRadius) / 2;
+        const x = arc.x + Math.cos(angle) * r;
+        const y = arc.y + Math.sin(angle) * r;
+        ctx.save();
+        ctx.font = 'bold 11px Inter, sans-serif';
+        ctx.fillStyle = '#fff';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(pct + '%', x, y);
+        ctx.restore();
+      });
+    }
+  };
+
   charts[canvasId] = new Chart(ctx, {
     type: "doughnut",
     data: { labels, datasets: [{ data: values, backgroundColor: palette.slice(0, labels.length), borderWidth: 0 }] },
     options: { responsive: true, plugins: { legend: { position: "bottom", labels: { padding: 10, usePointStyle: true, font: { size: 11 } } } } },
+    plugins: [doughnutLabelPlugin],
   });
 }
 
 function createHorizontalBar(canvasId, labels, values) {
   destroyChart(canvasId);
   const ctx = document.getElementById(canvasId).getContext("2d");
+
+  // Inline plugin: draw value at the right edge of each horizontal bar
+  const hbarLabelPlugin = {
+    id: 'hbarLabels',
+    afterDatasetsDraw(chart) {
+      const ctx = chart.ctx;
+      const dataset = chart.data.datasets[0];
+      chart.getDatasetMeta(0).data.forEach((bar, i) => {
+        const val = dataset.data[i];
+        if (!val) return;
+        const txt = val >= 1000 ? (val / 1000).toFixed(1) + 'k' : String(Math.round(val));
+        ctx.save();
+        ctx.font = 'bold 10px Inter, sans-serif';
+        ctx.fillStyle = 'rgba(255,255,255,0.9)';
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(txt, bar.x + 4, bar.y);
+        ctx.restore();
+      });
+    }
+  };
+
   charts[canvasId] = new Chart(ctx, {
     type: "bar",
     data: { labels, datasets: [{ data: values, backgroundColor: palette.slice(0, labels.length), borderRadius: 4, borderWidth: 0 }] },
     options: { indexAxis: "y", responsive: true, plugins: { legend: { display: false } }, scales: { x: { beginAtZero: true }, y: { ticks: { autoSkip: false } } } },
+    plugins: [hbarLabelPlugin],
   });
 }
 

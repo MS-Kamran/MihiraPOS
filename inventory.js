@@ -56,21 +56,33 @@ function populateSuggestions() {
 
 function renderStats() {
   const totalSKUs = inventory.length;
-  const totalSets = inventory.reduce((s, i) => {
+  // Remaining sets = sets currently available in stock
+  const remainingSets = inventory.reduce((s, i) => {
     const stock = getStock(i);
     const setSize = parseInt(i["CHURI IN A SET"]) || 1;
     return s + Math.floor(stock / setSize);
   }, 0);
+  // Sold sets = total units sold divided by set size per item
+  const soldSets = inventory.reduce((s, i) => {
+    const sold = parseInt(i["SOLD"]) || 0;
+    const setSize = parseInt(i["CHURI IN A SET"]) || 1;
+    return s + Math.round(sold / setSize);
+  }, 0);
   const lowStock = inventory.filter((i) => { const q = getStock(i); return q > 0 && q < 5; }).length;
-  const totalValue = inventory.reduce((s, i) => s + (parseFloat(i["SELLING PRICE"]) || 0) * getStock(i), 0);
   const outOfStock = inventory.filter((i) => getStock(i) <= 0).length;
+  // Total value of remaining stock
+  const totalValue = inventory.reduce((s, i) => s + (parseFloat(i["SELLING PRICE"]) || 0) * getStock(i), 0);
+  // Total sale value = what has already been sold (SOLD units × price)
+  const totalSaleValue = inventory.reduce((s, i) => s + (parseInt(i["SOLD"]) || 0) * (parseFloat(i["SELLING PRICE"]) || 0), 0);
 
   document.getElementById("statsRow").innerHTML = `
     <div class="stat-card glass"><div class="stat-icon blue"><i class="ri-archive-line"></i></div><div class="stat-label">Total SKUs</div><div class="stat-value">${totalSKUs}</div></div>
-    <div class="stat-card glass"><div class="stat-icon green"><i class="ri-stack-line"></i></div><div class="stat-label">Total Sets</div><div class="stat-value">${totalSets}</div></div>
+    <div class="stat-card glass"><div class="stat-icon green"><i class="ri-stack-line"></i></div><div class="stat-label">Remaining Sets</div><div class="stat-value">${remainingSets}</div></div>
+    <div class="stat-card glass"><div class="stat-icon indigo"><i class="ri-shopping-bag-3-line"></i></div><div class="stat-label">Sold Sets</div><div class="stat-value">${soldSets}</div></div>
     <div class="stat-card glass"><div class="stat-icon yellow"><i class="ri-error-warning-line"></i></div><div class="stat-label">Low Stock</div><div class="stat-value">${lowStock}</div></div>
     <div class="stat-card glass"><div class="stat-icon red"><i class="ri-close-circle-line"></i></div><div class="stat-label">Out of Stock</div><div class="stat-value">${outOfStock}</div></div>
-    <div class="stat-card glass"><div class="stat-icon cyan"><i class="ri-money-dollar-circle-line"></i></div><div class="stat-label">Total Value</div><div class="stat-value">${formatCurrency(totalValue)}</div></div>
+    <div class="stat-card glass"><div class="stat-icon cyan"><i class="ri-price-tag-3-line"></i></div><div class="stat-label">Stock Value</div><div class="stat-value">${formatCurrency(totalValue)}</div></div>
+    <div class="stat-card glass"><div class="stat-icon violet"><i class="ri-money-dollar-circle-line"></i></div><div class="stat-label">Total Sale Value</div><div class="stat-value">${formatCurrency(totalSaleValue)}</div></div>
   `;
 }
 
