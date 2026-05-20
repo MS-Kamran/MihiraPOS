@@ -8,6 +8,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
     <link rel="manifest" href="manifest.json">
 </head>
 <body>
@@ -28,6 +29,7 @@
                     <button class="tab-btn active" data-preset="all">All</button>
                 </div>
                 <button class="btn btn-outline" onclick="document.querySelector('.tab-btn[data-preset=\'all\']').click()" style="height:38px;padding:0 16px;"><i class="ri-filter-off-line"></i> Clear Filters</button>
+                <button class="btn btn-primary" onclick="downloadDashboard()" style="height:38px;padding:0 16px;"><i class="ri-download-line"></i> Save as Image</button>
             </div>
         </div>
 
@@ -57,29 +59,85 @@
                 </div>
 
                 <!-- Daily Revenue -->
-                <div class="chart-card glass"><h3 style="font-size:14px;">Daily Revenue (14 Days)</h3><canvas id="dailyChart"></canvas></div>
+                <div class="chart-card glass">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 8px;">
+                        <h3 style="font-size:14px; margin:0;">Daily Revenue (14 Days)</h3>
+                        <button class="btn-icon" onclick="downloadChart('dailyChart', 'Daily_Revenue')" title="Download Chart"><i class="ri-download-cloud-2-line"></i></button>
+                    </div>
+                    <canvas id="dailyChart"></canvas>
+                </div>
 
                 <!-- Daily Orders -->
-                <div class="chart-card glass"><h3 style="font-size:14px;">Daily Orders (14 Days)</h3><canvas id="dailyOrdersChart"></canvas></div>
+                <div class="chart-card glass">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 8px;">
+                        <h3 style="font-size:14px; margin:0;">Daily Orders (14 Days)</h3>
+                        <button class="btn-icon" onclick="downloadChart('dailyOrdersChart', 'Daily_Orders')" title="Download Chart"><i class="ri-download-cloud-2-line"></i></button>
+                    </div>
+                    <canvas id="dailyOrdersChart"></canvas>
+                </div>
 
                 <!-- Monthly Revenue -->
-                <div class="chart-card glass"><h3 style="font-size:14px;">Monthly Revenue</h3><canvas id="monthlyChart"></canvas></div>
+                <div class="chart-card glass">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 8px;">
+                        <h3 style="font-size:14px; margin:0;">Monthly Revenue</h3>
+                        <button class="btn-icon" onclick="downloadChart('monthlyChart', 'Monthly_Revenue')" title="Download Chart"><i class="ri-download-cloud-2-line"></i></button>
+                    </div>
+                    <canvas id="monthlyChart"></canvas>
+                </div>
 
                 <!-- Top 10 Products -->
-                <div class="chart-card glass"><h3 style="font-size:14px;">Top 10 Products</h3><canvas id="topProductsChart"></canvas></div>
+                <div class="chart-card glass">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 8px;">
+                        <h3 style="font-size:14px; margin:0;">Top 10 Products (Sets)</h3>
+                        <button class="btn-icon" onclick="downloadChart('topProductsChart', 'Top_10_Products')" title="Download Chart"><i class="ri-download-cloud-2-line"></i></button>
+                    </div>
+                    <canvas id="topProductsChart"></canvas>
+                </div>
 
                 <!-- Trending Colors -->
-                <div class="chart-card glass"><h3 style="font-size:14px;">Trending Colors</h3><canvas id="colorsChart"></canvas></div>
+                <div class="chart-card glass">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 8px;">
+                        <h3 style="font-size:14px; margin:0;">Trending Colors (Sets)</h3>
+                        <button class="btn-icon" onclick="downloadChart('colorsChart', 'Trending_Colors')" title="Download Chart"><i class="ri-download-cloud-2-line"></i></button>
+                    </div>
+                    <canvas id="colorsChart"></canvas>
+                </div>
 
+                <!-- Top 5 Customers -->
+                <div class="chart-card glass">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 8px;">
+                        <h3 style="font-size:14px; margin:0;">Top 5 Customers</h3>
+                        <button class="btn-icon" onclick="downloadChart('topCustomersChart', 'Top_5_Customers')" title="Download Chart"><i class="ri-download-cloud-2-line"></i></button>
+                    </div>
+                    <canvas id="topCustomersChart"></canvas>
+                </div>
 
                 <!-- Revenue vs Collection -->
-                <div class="chart-card glass"><h3 style="font-size:14px;">Revenue vs Collection</h3><canvas id="revenueVsCollectionChart"></canvas></div>
+                <div class="chart-card glass">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 8px;">
+                        <h3 style="font-size:14px; margin:0;">Revenue vs Collection</h3>
+                        <button class="btn-icon" onclick="downloadChart('revenueVsCollectionChart', 'Revenue_Vs_Collection')" title="Download Chart"><i class="ri-download-cloud-2-line"></i></button>
+                    </div>
+                    <canvas id="revenueVsCollectionChart"></canvas>
+                </div>
 
                 <!-- Delivery Pipeline -->
-                <div class="chart-card glass"><h3 style="font-size:14px;">Delivery Pipeline</h3><canvas id="deliveryChart"></canvas></div>
+                <div class="chart-card glass">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 8px;">
+                        <h3 style="font-size:14px; margin:0;">Delivery Pipeline</h3>
+                        <button class="btn-icon" onclick="downloadChart('deliveryChart', 'Delivery_Pipeline')" title="Download Chart"><i class="ri-download-cloud-2-line"></i></button>
+                    </div>
+                    <canvas id="deliveryChart"></canvas>
+                </div>
 
                 <!-- Payment Status -->
-                <div class="chart-card glass"><h3 style="font-size:14px;">Payment Status</h3><canvas id="paymentChart"></canvas></div>
+                <div class="chart-card glass">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 8px;">
+                        <h3 style="font-size:14px; margin:0;">Payment Status</h3>
+                        <button class="btn-icon" onclick="downloadChart('paymentChart', 'Payment_Status')" title="Download Chart"><i class="ri-download-cloud-2-line"></i></button>
+                    </div>
+                    <canvas id="paymentChart"></canvas>
+                </div>
             </div>
         </div>
     </div>

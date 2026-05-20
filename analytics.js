@@ -130,6 +130,7 @@ function refresh() {
   renderMonthlyChart(validSalesData);
   renderTopProducts(validSalesData);
   renderColorsChart(validSalesData);
+  renderTopCustomers(validSalesData);
   renderRevenueVsCollection(validSalesData);
   renderDeliveryChart(data);
   renderPaymentChart(data);
@@ -545,6 +546,19 @@ function renderColorsChart(data) {
 
 
 
+// ─── Top 5 Customers ────────────────────────────────────
+function renderTopCustomers(data) {
+  const customers = {};
+  data.forEach(r => {
+    const name = r.customer_name || "Unknown";
+    const phone = String(r.customer_phone || "");
+    const key = `${name} (${phone.slice(-4) || "?"})`;
+    customers[key] = (customers[key] || 0) + (parseFloat(r.total_amount) || parseFloat(r.total_price) || 0);
+  });
+  const sorted = Object.entries(customers).sort((a, b) => b[1] - a[1]).slice(0, 5);
+  createHorizontalBar("topCustomersChart", sorted.map(s => s[0]), sorted.map(s => s[1]));
+}
+
 // ─── Revenue vs Collection ──────────────────────────────
 function renderRevenueVsCollection(data) {
   destroyChart("revenueVsCollectionChart");
@@ -592,4 +606,47 @@ function renderPaymentChart(data) {
     statuses[s] = (statuses[s] || 0) + 1;
   });
   createDoughnut("paymentChart", Object.keys(statuses), Object.values(statuses));
+}
+
+// ─── Downloads ──────────────────────────────────────────
+function downloadChart(canvasId, name) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas) return;
+  // Chart.js uses transparent background by default, fill it white for PNG
+  const tempCanvas = document.createElement("canvas");
+  tempCanvas.width = canvas.width;
+  tempCanvas.height = canvas.height;
+  const ctx = tempCanvas.getContext("2d");
+  ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--panel-solid') || "#ffffff";
+  ctx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+  ctx.drawImage(canvas, 0, 0);
+
+  const link = document.createElement("a");
+  link.download = `${name}_${formatDateInput(new Date())}.png`;
+  link.href = tempCanvas.toDataURL("image/png");
+  link.click();
+}
+
+function downloadDashboard() {
+  const dashboard = document.getElementById("analyticsContent");
+  if (!dashboard) return;
+  
+  const originalBg = dashboard.style.background;
+  dashboard.style.background = getComputedStyle(document.documentElement).getPropertyValue('--bg-color') || "#f8fafc";
+  
+  html2canvas(dashboard, {
+    scale: 2, 
+    useCORS: true,
+    backgroundColor: dashboard.style.background
+  }).then(canvas => {
+    dashboard.style.background = originalBg;
+    const link = document.createElement("a");
+    link.download = `Mihira_Dashboard_${formatDateInput(new Date())}.png`;
+    link.href = canvas.toDataURL("image/png");
+    link.click();
+  }).catch(err => {
+    dashboard.style.background = originalBg;
+    console.error("Failed to capture dashboard", err);
+    showToast("Failed to download image", "error");
+  });
 }
