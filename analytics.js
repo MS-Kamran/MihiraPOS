@@ -299,27 +299,24 @@ function renderKPIs(data) {
   const pendingCollection = data.filter((r) => r.payment_status !== "Paid").reduce((s, r) => s + (parseFloat(r.due_amount) || 0), 0);
   const totalPaid = data.reduce((s, r) => s + (parseFloat(r.paid_amount) || 0), 0);
 
-  // Customer Analysis
+  // Customer Analysis — build a map of order_id → first row for accurate per-customer spend
   const customerOrders = {};
   const customerSpend = {};
+  const orderRowMap = {};
   data.forEach(r => {
     const phone = r.customer_phone || r.customer_id;
-    if (phone) {
-      if (!customerOrders[phone]) customerOrders[phone] = new Set();
-      customerOrders[phone].add(r.order_id);
-      // To avoid double-counting spend for the same order_id since data has row per item,
-      // we should only add the total_amount once per order_id. Wait!
-      // In the pos.js and backend.gs, total_amount is the order total. If it's duplicated across items,
-      // we shouldn't sum it per item! Wait, previously totalRevenue was calculated by dividing? No, totalRevenue was calculated using uniqueOrders.
-    }
+    if (!phone) return;
+    if (!customerOrders[phone]) customerOrders[phone] = new Set();
+    customerOrders[phone].add(r.order_id);
+    // Keep only the first row per order_id to avoid double-counting total_amount
+    if (!orderRowMap[r.order_id]) orderRowMap[r.order_id] = r;
   });
-  
-  // Recalculate customer spend accurately by iterating unique orders
-  uniqueOrders.forEach(order => {
-    const phone = order.customer_phone || order.customer_id;
-    if (phone) {
-      customerSpend[phone] = (customerSpend[phone] || 0) + (parseFloat(order.total_amount) || parseFloat(order.total_price) || 0);
-    }
+
+  // Sum spend per customer using one row per unique order
+  Object.values(orderRowMap).forEach(r => {
+    const phone = r.customer_phone || r.customer_id;
+    if (!phone) return;
+    customerSpend[phone] = (customerSpend[phone] || 0) + (parseFloat(r.total_amount) || parseFloat(r.total_price) || 0);
   });
 
   const repeatCustomers = Object.values(customerOrders).filter(s => s.size > 1).length;
@@ -348,16 +345,25 @@ function renderKPIs(data) {
   }
   const avgDailyOrders = Math.round((uniqueOrders.size / filterDays) * 10) / 10;
 
-  document.getElementById("kpiRow").innerHTML = `
-    <div class="stat-card glass"><div class="stat-icon green"><i class="ri-money-dollar-circle-line"></i></div><div class="stat-label">Total Revenue</div><div class="stat-value">${formatCurrency(totalRevenue)}</div></div>
-    <div class="stat-card glass"><div class="stat-icon blue"><i class="ri-line-chart-line"></i></div><div class="stat-label">Avg Order Value</div><div class="stat-value">${formatCurrency(aov)}</div></div>
-    <div class="stat-card glass"><div class="stat-icon cyan"><i class="ri-file-list-3-line"></i></div><div class="stat-label">Total Orders</div><div class="stat-value">${uniqueOrders.size}</div></div>
-    <div class="stat-card glass"><div class="stat-icon indigo"><i class="ri-bar-chart-2-line"></i></div><div class="stat-label">Avg Daily Orders</div><div class="stat-value">${avgDailyOrders}</div></div>
-    <div class="stat-card glass"><div class="stat-icon yellow"><i class="ri-stack-line"></i></div><div class="stat-label">Sets Sold</div><div class="stat-value">${totalSetsSold}</div></div>
-    <div class="stat-card glass"><div class="stat-icon red"><i class="ri-error-warning-line"></i></div><div class="stat-label">Pending Due</div><div class="stat-value">${formatCurrency(pendingCollection)}</div></div>
-    <div class="stat-card glass"><div class="stat-icon green"><i class="ri-user-heart-line"></i></div><div class="stat-label">Repeat Customers</div><div class="stat-value">${repeatCustomers}</div></div>
-    <div class="stat-card glass"><div class="stat-icon violet"><i class="ri-star-smile-line"></i></div><div class="stat-label">Above Avg Customers</div><div class="stat-value">${aboveAvgCustomers}</div></div>
-  `;
+  const kpiCards = [
+    { icon: "ri-money-dollar-circle-line", color: "green", label: "Total Revenue", value: formatCurrency(totalRevenue) },
+    { icon: "ri-line-chart-line", color: "blue", label: "Avg Order Value", value: formatCurrency(aov) },
+    { icon: "ri-file-list-3-line", color: "cyan", label: "Total Orders", value: uniqueOrders.size },
+    { icon: "ri-bar-chart-2-line", color: "indigo", label: "Avg Daily Orders", value: avgDailyOrders },
+    { icon: "ri-stack-line", color: "yellow", label: "Sets Sold", value: totalSetsSold },
+    { icon: "ri-error-warning-line", color: "red", label: "Pending Due", value: formatCurrency(pendingCollection) },
+    { icon: "ri-user-heart-line", color: "green", label: "Repeat Customers", value: repeatCustomers },
+    { icon: "ri-star-smile-line", color: "violet", label: "Above Avg Customers", value: aboveAvgCustomers },
+  ];
+
+  document.getElementById("kpiRow").innerHTML = kpiCards.map((c, i) => `
+    <div class="stat-card glass" style="position:relative;">
+      <button class="btn-icon kpi-download" onclick="downloadCard(this.closest('.stat-card'), '${c.label.replace(/\s+/g, '_')}')" title="Download Card" style="position:absolute;top:6px;right:6px;opacity:0;transition:opacity .2s;"><i class="ri-download-cloud-2-line" style="font-size:14px;"></i></button>
+      <div class="stat-icon ${c.color}"><i class="${c.icon}"></i></div>
+      <div class="stat-label">${c.label}</div>
+      <div class="stat-value">${c.value}</div>
+    </div>
+  `).join("");
 }
 
 // ─── Chart Helpers ──────────────────────────────────────
@@ -609,6 +615,18 @@ function renderPaymentChart(data) {
 }
 
 // ─── Downloads ──────────────────────────────────────────
+function downloadCard(element, name) {
+  if (!element || typeof html2canvas === "undefined") return;
+  html2canvas(element, { scale: 2, useCORS: true, backgroundColor: getComputedStyle(document.documentElement).getPropertyValue('--panel-solid') || "#ffffff" })
+    .then(canvas => {
+      const link = document.createElement("a");
+      link.download = `${name}_${formatDateInput(new Date())}.png`;
+      link.href = canvas.toDataURL("image/png");
+      link.click();
+    });
+}
+
+
 function downloadChart(canvasId, name) {
   const canvas = document.getElementById(canvasId);
   if (!canvas) return;
