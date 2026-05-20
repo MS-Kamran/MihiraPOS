@@ -58,6 +58,13 @@ async function loadOrders() {
   }
 }
 
+window.resetOrderFilters = () => {
+  document.getElementById("searchOrders").value = "";
+  document.getElementById("dateFrom").value = "";
+  document.getElementById("dateTo").value = "";
+  // Also switch back to All tab if needed
+  document.querySelector('.tab-btn[data-status="All"]').click();
+};
 function groupOrders() {
   groupedOrders = {};
   allOrders.forEach((row) => {

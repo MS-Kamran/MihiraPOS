@@ -21,6 +21,12 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 });
 
+window.resetCustomerFilters = () => {
+  document.getElementById("searchCust").value = "";
+  document.getElementById("sortCust").value = "name";
+  renderTable();
+};
+
 function renderStats() {
   const total = customers.length;
   const totalSpent = customers.reduce((s, c) => s + (parseFloat(c.TotalSpent) || 0), 0);
