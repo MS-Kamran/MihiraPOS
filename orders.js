@@ -43,11 +43,26 @@ async function loadOrders() {
   try {
     // Load inventory for product images and return qty lookups
     const [ordersData, returnsData, invData] = await Promise.all([
-      Api.getOrders(), Api.getReturns(), Api.getInventory()
+      Api.getOrders().catch(err => ({ error: err.message })),
+      Api.getReturns().catch(err => ({ error: err.message })),
+      Api.getInventory().catch(err => ({ error: err.message }))
     ]);
-    allOrders = ordersData;
-    allReturns = returnsData;
-    inventoryCache = invData || [];
+
+    // If orders API fundamentally failed (network or parse error)
+    if (ordersData && ordersData.error) {
+      throw new Error("Orders API failed: " + ordersData.error);
+    }
+    // Also if it returned a backend error object
+    if (!Array.isArray(ordersData)) {
+      if (ordersData && ordersData.error) throw new Error(ordersData.error);
+      allOrders = [];
+    } else {
+      allOrders = ordersData;
+    }
+
+    allReturns = Array.isArray(returnsData) ? returnsData : [];
+    inventoryCache = Array.isArray(invData) ? invData : [];
+    
     groupOrders();
     renderOrders();
     toggleReturnsPanel();
