@@ -36,6 +36,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     document.getElementById("analyticsContent").classList.remove("hidden");
     refresh();
   } catch (err) {
+    console.error("Analytics load error:", err);
     showToast("Failed to load data", "error");
   }
 });

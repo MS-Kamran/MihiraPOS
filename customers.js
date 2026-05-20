@@ -17,6 +17,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     document.getElementById("loading").classList.add("hidden");
     document.getElementById("custTable").classList.remove("hidden");
   } catch (err) {
+    console.error("Customers load error:", err);
     showToast("Failed to load data", "error");
   }
 });
