@@ -68,7 +68,10 @@ function setupPresets() {
 }
 
 function formatDateInput(d) {
-  return d.toISOString().split("T")[0];
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
 }
 
 function getFilteredOrders() {
@@ -101,6 +104,11 @@ function getFilteredOrders() {
 
 function parseOrderDate(dateStr) {
   if (!dateStr) return null;
+  // Handle DD/MM/YYYY or DD-MM-YYYY
+  if (typeof dateStr === "string" && /^\d{1,2}[\/\-]\d{1,2}[\/\-]\d{4}/.test(dateStr)) {
+    const parts = dateStr.split(/[\/\-]/);
+    return new Date(parts[2], parts[1] - 1, parts[0]);
+  }
   const d = new Date(dateStr);
   return isNaN(d.getTime()) ? null : d;
 }

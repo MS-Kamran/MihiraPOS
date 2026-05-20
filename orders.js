@@ -172,10 +172,17 @@ function renderOrderStats() {
 
   Object.keys(groupedOrders).forEach(id => {
     const order = groupedOrders[id];
-    const orderDate = new Date(order.date);
-    if (!isNaN(orderDate.getTime())) {
-      if (fromVal && orderDate < new Date(fromVal)) return;
-      if (toVal) { const toDate = new Date(toVal); toDate.setHours(23, 59, 59); if (orderDate > toDate) return; }
+    const orderDate = parseOrderDate(order.date);
+    if (orderDate) {
+      if (fromVal) {
+        const fp = fromVal.split("-");
+        if (orderDate < new Date(fp[0], fp[1] - 1, fp[2])) return;
+      }
+      if (toVal) {
+        const tp = toVal.split("-");
+        const toDate = new Date(tp[0], tp[1] - 1, tp[2], 23, 59, 59);
+        if (orderDate > toDate) return;
+      }
     }
     counts.All++;
     const status = order.delivery_status || "Pending";
@@ -242,12 +249,15 @@ function renderOrders() {
     }
     
     // Date filter
-    const orderDate = new Date(order.date);
-    if (!isNaN(orderDate.getTime())) {
-      if (fromVal && orderDate < new Date(fromVal)) return;
+    const orderDate = parseOrderDate(order.date);
+    if (orderDate) {
+      if (fromVal) {
+        const fp = fromVal.split("-");
+        if (orderDate < new Date(fp[0], fp[1] - 1, fp[2])) return;
+      }
       if (toVal) {
-        const toDate = new Date(toVal);
-        toDate.setHours(23, 59, 59);
+        const tp = toVal.split("-");
+        const toDate = new Date(tp[0], tp[1] - 1, tp[2], 23, 59, 59);
         if (orderDate > toDate) return;
       }
     }
