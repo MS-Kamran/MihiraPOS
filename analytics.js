@@ -298,14 +298,6 @@ function renderKPIs(data) {
   });
   const repeatCustomers = Object.values(customerOrderCount).filter(c => c > 1).length;
 
-  // Today's stats
-  const todayStr = formatDateInput(new Date());
-  const todayOrders = data.filter(r => {
-    const d = parseOrderDate(r.date);
-    return d && formatDateInput(d) === todayStr;
-  });
-  const todayRevenue = todayOrders.reduce((s, r) => s + (parseFloat(r.total_amount) || parseFloat(r.total_price) || 0), 0);
-  const todayOrderCount = new Set(todayOrders.map(r => r.order_id)).size;
 
   // Compute days in current filter range for accurate averages
   const fromVal = document.getElementById("dateFrom").value;
@@ -328,8 +320,6 @@ function renderKPIs(data) {
   const avgDailyOrders = Math.round((uniqueOrders.size / filterDays) * 10) / 10;
 
   document.getElementById("kpiRow").innerHTML = `
-    <div class="stat-card glass"><div class="stat-icon gold"><i class="ri-calendar-check-line"></i></div><div class="stat-label">Today's Revenue</div><div class="stat-value">${formatCurrency(todayRevenue)}</div></div>
-    <div class="stat-card glass"><div class="stat-icon cyan"><i class="ri-shopping-bag-line"></i></div><div class="stat-label">Today's Orders</div><div class="stat-value">${todayOrderCount}</div></div>
     <div class="stat-card glass"><div class="stat-icon green"><i class="ri-money-dollar-circle-line"></i></div><div class="stat-label">Total Revenue</div><div class="stat-value">${formatCurrency(totalRevenue)}</div></div>
     <div class="stat-card glass"><div class="stat-icon blue"><i class="ri-line-chart-line"></i></div><div class="stat-label">Avg Order Value</div><div class="stat-value">${formatCurrency(aov)}</div></div>
     <div class="stat-card glass"><div class="stat-icon cyan"><i class="ri-file-list-3-line"></i></div><div class="stat-label">Total Orders</div><div class="stat-value">${uniqueOrders.size}</div></div>
