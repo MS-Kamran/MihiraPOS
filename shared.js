@@ -134,6 +134,18 @@ function formatCurrency(amount) {
   return "৳" + num.toLocaleString("en-BD", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 }
 
+// ─── Date Parser (shared across orders + analytics) ─────
+function parseOrderDate(dateStr) {
+  if (!dateStr) return null;
+  // Handle DD/MM/YYYY or DD-MM-YYYY
+  if (typeof dateStr === "string" && /^\d{1,2}[\/\-]\d{1,2}[\/\-]\d{4}/.test(dateStr)) {
+    const parts = dateStr.split(/[\/\-]/);
+    return new Date(parts[2], parts[1] - 1, parts[0]);
+  }
+  const d = new Date(dateStr);
+  return isNaN(d.getTime()) ? null : d;
+}
+
 // ─── Sidebar ────────────────────────────────────────────
 function initSidebar() {
   const sidebar = document.getElementById("sidebar");
