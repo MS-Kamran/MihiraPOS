@@ -143,6 +143,7 @@ function refresh() {
   renderTopProductsRevenue(validSalesData);
   renderColorsChart(validSalesData);
   renderHighestStock();
+  renderHighestStockColors();
   renderTopCustomers(validSalesData);
   renderRevenueVsCollection(validSalesData);
   renderDeliveryChart(data);
@@ -728,6 +729,22 @@ function renderHighestStock() {
   
   const sorted = Object.entries(products).sort((a, b) => b[1] - a[1]).slice(0, 10);
   createHorizontalBar("highestStockChart", sorted.map(s => s[0]), sorted.map(s => Math.round(s[1] * 10) / 10));
+}
+
+// ─── Highest Stock Available (Colors) ───────────────────
+function renderHighestStockColors() {
+  const colors = {};
+  allInventory.forEach(item => {
+    const color = item.COLOR || "Unknown";
+    const remaining = getStock(item);
+    const setSize = parseInt(item["CHURI IN A SET"]) || 1;
+    if (remaining > 0) {
+      colors[color] = (colors[color] || 0) + (remaining / setSize); // Stock in sets
+    }
+  });
+  
+  const sorted = Object.entries(colors).sort((a, b) => b[1] - a[1]).slice(0, 10);
+  createHorizontalBar("highestStockColorsChart", sorted.map(s => s[0]), sorted.map(s => Math.round(s[1] * 10) / 10));
 }
 
 // ─── Trending Colors (Top 10) ───────────────────────────
