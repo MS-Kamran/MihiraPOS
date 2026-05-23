@@ -34,6 +34,13 @@ document.addEventListener("DOMContentLoaded", async () => {
     allInventory = invData;
     document.getElementById("loading").classList.add("hidden");
     document.getElementById("analyticsContent").classList.remove("hidden");
+    
+    document.getElementById("weeklyChartRange").addEventListener("change", () => {
+      const validSalesData = getFilteredOrders().filter(r => r.delivery_status !== "Returned" && r.delivery_status !== "Cancelled");
+      const weeksCount = parseInt(document.getElementById("weeklyChartRange").value) || 4;
+      renderWeeklyChart(validSalesData, weeksCount);
+    });
+
     refresh();
   } catch (err) {
     console.error("Analytics load error:", err);
@@ -127,6 +134,10 @@ function refresh() {
   renderKPIs(validSalesData);
   renderDailyChart(validSalesData);
   renderDailyOrdersChart(validSalesData);
+  
+  const weeksCount = parseInt(document.getElementById("weeklyChartRange")?.value) || 4;
+  renderWeeklyChart(validSalesData, weeksCount);
+  
   renderMonthlyChart(validSalesData);
   renderTopProducts(validSalesData);
   renderTopProductsRevenue(validSalesData);
@@ -590,6 +601,47 @@ function renderDailyOrdersChart(data) {
   
   const values = sorted.map(k => days[k].size);
   createBarWithTrend("dailyOrdersChart", labels, values, "Orders");
+}
+
+// ─── Weekly Revenue ──────────────────────────────────────
+function renderWeeklyChart(data, weeksCount) {
+  const weeks = {};
+  const now = new Date();
+  
+  // Find Monday of the current week
+  const currentDay = now.getDay();
+  const diffToMonday = currentDay === 0 ? 6 : currentDay - 1;
+  const startOfThisWeek = new Date(now.getFullYear(), now.getMonth(), now.getDate() - diffToMonday);
+
+  for (let i = weeksCount - 1; i >= 0; i--) {
+    const weekStart = new Date(startOfThisWeek.getTime() - (i * 7 * 24 * 60 * 60 * 1000));
+    const weekEnd = new Date(weekStart.getTime() + (6 * 24 * 60 * 60 * 1000));
+    const label = `${weekStart.getDate()} ${weekStart.toLocaleString('default', { month: 'short' })}`;
+    // Store exact start and end timestamps (inclusive)
+    weeks[label] = { 
+      start: weekStart.getTime(), 
+      end: weekEnd.getTime() + (24*60*60*1000) - 1, 
+      value: 0 
+    };
+  }
+
+  data.forEach(r => {
+    const d = parseOrderDate(r.date);
+    if (!d) return;
+    // ensure order date is compared accurately
+    const time = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+    
+    for (const [label, week] of Object.entries(weeks)) {
+      if (time >= week.start && time <= week.end) {
+        week.value += (parseFloat(r.total_amount) || parseFloat(r.total_price) || 0);
+        break;
+      }
+    }
+  });
+
+  const labels = Object.keys(weeks);
+  const values = labels.map(k => weeks[k].value);
+  createBarWithTrend("weeklyChart", labels, values, "Revenue");
 }
 
 // ─── Monthly Revenue ────────────────────────────────────

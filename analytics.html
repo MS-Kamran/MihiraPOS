@@ -76,6 +76,21 @@
                     <canvas id="dailyOrdersChart"></canvas>
                 </div>
 
+                <!-- Weekly Revenue -->
+                <div class="chart-card glass">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 8px;">
+                        <div style="display:flex; align-items:center; gap:8px;">
+                            <h3 style="font-size:14px; margin:0;">Weekly Revenue</h3>
+                            <select id="weeklyChartRange" class="form-input" style="padding:2px 6px; font-size:11px; height:24px; min-height:24px; width:auto;">
+                                <option value="4">4 Weeks</option>
+                                <option value="12">12 Weeks</option>
+                            </select>
+                        </div>
+                        <button class="btn-icon" onclick="downloadChart('weeklyChart', 'Weekly_Revenue')" title="Download Chart"><i class="ri-download-cloud-2-line"></i></button>
+                    </div>
+                    <canvas id="weeklyChart"></canvas>
+                </div>
+
                 <!-- Monthly Revenue -->
                 <div class="chart-card glass">
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 8px;">
