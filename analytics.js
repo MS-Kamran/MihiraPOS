@@ -639,15 +639,24 @@ function renderTopProductsRevenue(data) {
     const rawNames = String(r.category || "Unknown");
     const rawQtys = String(r.quantity || "1");
     const rawPrices = String(r.unit_price || "0");
+    const rawSerials = String(r.serial || "");
     const names = rawNames.split(",").map(s => s.trim());
     const qtys = rawQtys.split(",").map(s => parseInt(s.trim()) || 1);
     const prices = rawPrices.split(",").map(s => parseFloat(s.trim()) || 0);
+    const serials = rawSerials.split(",").map(s => s.trim());
 
     names.forEach((name, idx) => {
       if (!name) return;
       let qty = qtys[idx] || qtys[0] || 1;
       let price = prices[idx] || prices[0] || 0;
-      products[name] = (products[name] || 0) + (price * qty);
+      const serial = serials[idx] || serials[0];
+      
+      const invItem = allInventory.find(i => String(i.SERIAL) === serial);
+      const setSize = invItem ? (parseInt(invItem["CHURI IN A SET"]) || 1) : 1;
+      
+      const sets = qty / setSize;
+      const setPrice = price * setSize;
+      products[name] = (products[name] || 0) + (sets * setPrice);
     });
   });
   const sorted = Object.entries(products).sort((a, b) => b[1] - a[1]).slice(0, 10);
