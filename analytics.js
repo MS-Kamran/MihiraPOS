@@ -129,7 +129,9 @@ function refresh() {
   renderDailyOrdersChart(validSalesData);
   renderMonthlyChart(validSalesData);
   renderTopProducts(validSalesData);
+  renderTopProductsRevenue(validSalesData);
   renderColorsChart(validSalesData);
+  renderHighestStock();
   renderTopCustomers(validSalesData);
   renderRevenueVsCollection(validSalesData);
   renderDeliveryChart(data);
@@ -345,6 +347,31 @@ function renderKPIs(data) {
   }
   const avgDailyOrders = Math.round((uniqueOrders.size / filterDays) * 10) / 10;
 
+  // Compute Discount Metrics
+  let totalDiscount = 0;
+  let customersWithDiscount = new Set();
+  
+  data.forEach(r => {
+    const discountStr = String(r.discount || "").trim();
+    let discAmt = 0;
+    const subtotal = parseFloat(r.total_price) || 0;
+    
+    if (discountStr.includes("%")) {
+      discAmt = subtotal * ((parseFloat(discountStr) || 0) / 100);
+    } else {
+      discAmt = parseFloat(discountStr.replace(/[^\d.]/g, "")) || 0;
+    }
+    
+    if (discAmt > 0) {
+      totalDiscount += discAmt;
+      const phone = r.customer_phone || r.customer_id || r.customer_name || r.order_id; // fallback to order_id if no customer data
+      customersWithDiscount.add(phone);
+    }
+  });
+
+  const discountPercentage = (totalRevenue + totalDiscount) > 0 ? (totalDiscount / (totalRevenue + totalDiscount)) * 100 : 0;
+  const avgDiscountPerPerson = customersWithDiscount.size > 0 ? (totalDiscount / customersWithDiscount.size) : 0;
+
   const kpiCards = [
     { icon: "ri-money-dollar-circle-line", color: "green", label: "Total Revenue", value: formatCurrency(totalRevenue) },
     { icon: "ri-line-chart-line", color: "blue", label: "Avg Order Value", value: formatCurrency(aov) },
@@ -354,6 +381,9 @@ function renderKPIs(data) {
     { icon: "ri-error-warning-line", color: "red", label: "Pending Due", value: formatCurrency(pendingCollection) },
     { icon: "ri-user-heart-line", color: "green", label: "Repeat Customers", value: repeatCustomers },
     { icon: "ri-star-smile-line", color: "violet", label: "Above Avg Customers", value: aboveAvgCustomers },
+    { icon: "ri-price-tag-3-line", color: "coral", label: "Total Discount Given", value: formatCurrency(totalDiscount) },
+    { icon: "ri-percent-line", color: "emerald", label: "Discount %", value: discountPercentage.toFixed(1) + "%" },
+    { icon: "ri-user-smile-line", color: "info", label: "Avg Discount / Person", value: formatCurrency(avgDiscountPerPerson) },
   ];
 
   document.getElementById("kpiRow").innerHTML = kpiCards.map((c, i) => `
@@ -600,6 +630,44 @@ function renderTopProducts(data) {
   });
   const sorted = Object.entries(products).sort((a, b) => b[1] - a[1]).slice(0, 10);
   createHorizontalBar("topProductsChart", sorted.map((s) => s[0]), sorted.map((s) => Math.round(s[1] * 10) / 10));
+}
+
+// ─── Top 10 Products (Revenue) ──────────────────────────
+function renderTopProductsRevenue(data) {
+  const products = {};
+  data.forEach((r) => {
+    const rawNames = String(r.category || "Unknown");
+    const rawQtys = String(r.quantity || "1");
+    const rawPrices = String(r.unit_price || "0");
+    const names = rawNames.split(",").map(s => s.trim());
+    const qtys = rawQtys.split(",").map(s => parseInt(s.trim()) || 1);
+    const prices = rawPrices.split(",").map(s => parseFloat(s.trim()) || 0);
+
+    names.forEach((name, idx) => {
+      if (!name) return;
+      let qty = qtys[idx] || qtys[0] || 1;
+      let price = prices[idx] || prices[0] || 0;
+      products[name] = (products[name] || 0) + (price * qty);
+    });
+  });
+  const sorted = Object.entries(products).sort((a, b) => b[1] - a[1]).slice(0, 10);
+  createHorizontalBar("topProductsRevenueChart", sorted.map((s) => s[0]), sorted.map((s) => Math.round(s[1])));
+}
+
+// ─── Highest Stock Available ────────────────────────────
+function renderHighestStock() {
+  const products = {};
+  allInventory.forEach(item => {
+    const name = item.NAME || "Unknown";
+    const remaining = getStock(item);
+    const setSize = parseInt(item["CHURI IN A SET"]) || 1;
+    if (remaining > 0) {
+      products[name] = (products[name] || 0) + (remaining / setSize); // Stock in sets
+    }
+  });
+  
+  const sorted = Object.entries(products).sort((a, b) => b[1] - a[1]).slice(0, 10);
+  createHorizontalBar("highestStockChart", sorted.map(s => s[0]), sorted.map(s => Math.round(s[1] * 10) / 10));
 }
 
 // ─── Trending Colors (Top 10) ───────────────────────────
