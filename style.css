@@ -141,7 +141,7 @@ select option{background:var(--bg)}
 .badge-default{background:rgba(0,0,0,0.08);color:var(--text-muted)}
 
 /* ─── Buttons ─── */
-.btn{border:none;border-radius:var(--radius-sm);font-family:inherit;font-weight:600;font-size:13px;cursor:pointer;transition:var(--transition);display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:10px 18px;white-space:nowrap}
+.btn{border:none;border-radius:var(--radius-sm);font-family:inherit;font-weight:600;font-size:13px;cursor:pointer;transition:var(--transition);display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:10px 18px;white-space:nowrap;box-sizing:border-box}
 .btn-primary{background:var(--primary);color:#ffffff}
 .btn-primary:hover:not(:disabled){background:var(--primary-hover);box-shadow:0 4px 12px rgba(201,168,130,0.4)}
 .btn-primary:disabled{background:var(--border);color:var(--text-muted);cursor:not-allowed}
@@ -444,7 +444,6 @@ select option{background:var(--bg)}
   .product-card:hover{transform:none;border-color:var(--border);box-shadow:none}
   .product-card:active{transform:scale(0.97);transition:transform 0.1s}
   .btn:active{transform:scale(0.96)}
-  .qty-btn{min-width:36px;min-height:36px}
   input,select{font-size:16px!important}
 }
 

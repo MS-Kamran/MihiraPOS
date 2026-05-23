@@ -71,9 +71,19 @@ function renderStats() {
   const lowStock = inventory.filter((i) => { const q = getStock(i); return q > 0 && q < 5; }).length;
   const outOfStock = inventory.filter((i) => getStock(i) <= 0).length;
   // Total value of remaining stock
-  const totalValue = inventory.reduce((s, i) => s + (parseFloat(i["SELLING PRICE"]) || 0) * getStock(i), 0);
+  const totalValue = inventory.reduce((s, i) => {
+      const stock = getStock(i);
+      const setSize = parseInt(i["CHURI IN A SET"]) || 1;
+      const sets = Math.floor(stock / setSize);
+      return s + (parseFloat(i["SELLING PRICE"]) || 0) * sets;
+  }, 0);
   // Total sale value = what has already been sold (SOLD units × price)
-  const totalSaleValue = inventory.reduce((s, i) => s + (parseInt(i["SOLD"]) || 0) * (parseFloat(i["SELLING PRICE"]) || 0), 0);
+  const totalSaleValue = inventory.reduce((s, i) => {
+      const sold = parseInt(i["SOLD"]) || 0;
+      const setSize = parseInt(i["CHURI IN A SET"]) || 1;
+      const sets = Math.round(sold / setSize);
+      return s + sets * (parseFloat(i["SELLING PRICE"]) || 0);
+  }, 0);
 
   document.getElementById("statsRow").innerHTML = `
     <div class="stat-card glass"><div class="stat-icon blue"><i class="ri-archive-line"></i></div><div class="stat-label">Total SKUs</div><div class="stat-value">${totalSKUs}</div></div>

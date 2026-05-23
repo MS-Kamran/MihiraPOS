@@ -159,6 +159,11 @@ function buildItemRows(order) {
     const uPrice = unitPrices[idx] || unitPrices[0] || "0";
     const imgUrl = getProductImage(serial, category, color);
 
+    const match = inventoryCache.find(i => String(i.SERIAL) === String(serial) || (String(i.NAME) === String(category) && String(i.COLOR) === String(color)));
+    const setSize = match ? (parseInt(match["CHURI IN A SET"]) || 12) : 12;
+    const setPrice = parseFloat(uPrice) * setSize;
+    const qtyDisplay = formatStockDisplay(parseInt(qty), setSize);
+
     return `
       <div class="order-item-card" style="display:flex; justify-content:space-between; align-items:center;">
         <div style="display:flex; gap:12px; align-items:center;">
@@ -166,7 +171,7 @@ function buildItemRows(order) {
           <div class="order-item-info">
             <div class="order-item-title">${category}</div>
             <div class="order-item-meta">${color} · Size ${size} · Serial: ${serial}</div>
-            <div class="order-item-meta" style="font-weight:600;color:var(--text);margin-top:4px;">× ${qty} (৳${uPrice}/ea)</div>
+            <div class="order-item-meta" style="font-weight:600;color:var(--text);margin-top:4px;">${qtyDisplay} (৳${formatCurrency(setPrice)}/set)</div>
           </div>
         </div>
         ${order.delivery_status !== "Returned" && order.delivery_status !== "Pending" ? 
@@ -553,12 +558,14 @@ function openReturnModal(orderId, serial, name, color, size, unitPrice, qty) {
   }
   unitPriceInput.value = unitPrice;
 
+  const invItem = inventoryCache.find(i => String(i.SERIAL) === String(serial));
+  const setSize = invItem ? (parseInt(invItem["CHURI IN A SET"]) || 12) : 12;
+  const setPrice = parseFloat(unitPrice) * setSize;
+
   // Validate qty — fallback to inventory set size if order data is corrupted
   let parsedQty = parseInt(qty) || 0;
   if (parsedQty <= 0 || parsedQty > 500) {
-    // Look up from inventory to get the correct set size
-    const invItem = inventoryCache.find(i => String(i.SERIAL) === String(serial));
-    parsedQty = invItem ? (parseInt(invItem["CHURI IN A SET"]) || 12) : 12;
+    parsedQty = setSize;
   }
   returnMaxQty = parsedQty;
   document.getElementById("returnTotalCount").value = returnMaxQty;
@@ -569,7 +576,7 @@ function openReturnModal(orderId, serial, name, color, size, unitPrice, qty) {
   document.getElementById("returnItemInfo").innerHTML = `
     <strong>${orderId}</strong> — ${name} · ${color} · Size ${size}<br>
     <span style="color:var(--text-muted)">Customer: ${order.customer_name} · ${order.customer_phone}${order.customer_address ? ' · ' + order.customer_address : ''}</span><br>
-    <span style="color:var(--accent);font-weight:600">Unit Price: ৳${unitPrice}</span>
+    <span style="color:var(--accent);font-weight:600">Set Price: ৳${formatCurrency(setPrice)}</span>
   `;
 
   updateReturnPreview();
@@ -608,7 +615,7 @@ function updateReturnPreview() {
     preview.style.display = "block";
     preview.style.background = "rgba(59, 130, 246, 0.1)";
     preview.style.color = "#3b82f6";
-    preview.innerHTML = `<strong>Refund: ৳${totalReturning * unitPrice}</strong> — ${good} good + ${broken} damaged`;
+    preview.innerHTML = `<strong>Refund: ৳${formatCurrency(totalReturning * unitPrice)}</strong> — ${good} good + ${broken} damaged`;
     document.getElementById("confirmReturnBtn").disabled = false;
   } else {
     preview.style.display = "none";
@@ -682,11 +689,21 @@ function printOrder(id) {
   order.rows.forEach(row => {
     const qty = parseInt(row.quantity) || 1;
     const price = parseFloat(row.unit_price) || 0;
+    const match = inventoryCache.find(i => String(i.SERIAL) === String(row.serial));
+    const setSize = match ? (parseInt(match["CHURI IN A SET"]) || 12) : 12;
+    
+    const sets = Math.floor(qty / setSize);
+    const pieces = qty % setSize;
+    let qtyDisplay = '';
+    if (sets > 0) qtyDisplay += `${sets} Set${sets > 1 ? 's' : ''}`;
+    if (pieces > 0) qtyDisplay += (sets > 0 ? ' + ' : '') + `${pieces} Pcs`;
+    if (!qtyDisplay) qtyDisplay = `${qty} Pcs`;
+
     itemsHtml += `
       <tr>
         <td style="padding: 8px; border-bottom: 1px solid #ddd;">${row.category} - ${row.color} (Size ${row.size})</td>
-        <td style="padding: 8px; border-bottom: 1px solid #ddd; text-align: center;">${qty}</td>
-        <td style="padding: 8px; border-bottom: 1px solid #ddd; text-align: right;">৳${price * qty}</td>
+        <td style="padding: 8px; border-bottom: 1px solid #ddd; text-align: center;">${qtyDisplay}</td>
+        <td style="padding: 8px; border-bottom: 1px solid #ddd; text-align: right;">৳${formatCurrency(price * qty)}</td>
       </tr>
     `;
   });
