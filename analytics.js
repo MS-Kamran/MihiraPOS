@@ -648,15 +648,14 @@ function renderTopProductsRevenue(data) {
     names.forEach((name, idx) => {
       if (!name) return;
       let qty = qtys[idx] || qtys[0] || 1;
-      let price = prices[idx] || prices[0] || 0;
       const serial = serials[idx] || serials[0];
       
       const invItem = allInventory.find(i => String(i.SERIAL) === serial);
       const setSize = invItem ? (parseInt(invItem["CHURI IN A SET"]) || 1) : 1;
+      const sellingPrice = invItem ? (parseFloat(invItem["SELLING PRICE"]) || 0) : 0;
       
       const sets = qty / setSize;
-      const setPrice = price * setSize;
-      products[name] = (products[name] || 0) + (sets * setPrice);
+      products[name] = (products[name] || 0) + (sets * sellingPrice);
     });
   });
   const sorted = Object.entries(products).sort((a, b) => b[1] - a[1]).slice(0, 10);
