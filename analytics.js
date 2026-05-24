@@ -68,7 +68,21 @@ function setupPresets() {
         const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
         from.value = formatDateInput(monthStart); to.value = formatDateInput(now);
       } else {
-        from.value = ""; to.value = "";
+        let minDate = null;
+        let maxDate = null;
+        allOrders.forEach(o => {
+          const d = parseOrderDate(o.date);
+          if (d) {
+            if (!minDate || d < minDate) minDate = d;
+            if (!maxDate || d > maxDate) maxDate = d;
+          }
+        });
+        if (minDate && maxDate) {
+          from.value = formatDateInput(minDate);
+          to.value = formatDateInput(maxDate);
+        } else {
+          from.value = ""; to.value = "";
+        }
       }
       refresh();
     });
@@ -358,6 +372,7 @@ function renderKPIs(data) {
     filterDays = Math.max(1, daySet.size);
   }
   const avgDailyOrders = Math.round((uniqueOrders.size / filterDays) * 10) / 10;
+  const avgSetsPerOrder = uniqueOrders.size > 0 ? (totalSetsSold / uniqueOrders.size).toFixed(1) : 0;
 
   // Compute Discount Metrics
   let totalDiscount = 0;
@@ -390,6 +405,7 @@ function renderKPIs(data) {
     { icon: "ri-file-list-3-line", color: "cyan", label: "Total Orders", value: uniqueOrders.size },
     { icon: "ri-bar-chart-2-line", color: "indigo", label: "Avg Daily Orders", value: avgDailyOrders },
     { icon: "ri-stack-line", color: "yellow", label: "Sets Sold", value: totalSetsSold },
+    { icon: "ri-shopping-bag-3-line", color: "warning", label: "Avg Sets / Order", value: avgSetsPerOrder },
     { icon: "ri-error-warning-line", color: "red", label: "Pending Due", value: formatCurrency(pendingCollection) },
     { icon: "ri-user-heart-line", color: "green", label: "Repeat Customers", value: repeatCustomers },
     { icon: "ri-star-smile-line", color: "violet", label: "Above Avg Customers", value: aboveAvgCustomers },
