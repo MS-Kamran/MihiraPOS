@@ -189,7 +189,7 @@ function renderOrderStats() {
   const container = document.getElementById("orderStatsRow");
   if (!container) return;
 
-  const counts = { All: 0, Pending: 0, Dispatched: 0, Delivered: 0, Returned: 0, Cancelled: 0 };
+  const counts = { All: 0, Pending: 0, Packed: 0, Dispatched: 0, Delivered: 0, Returned: 0, Cancelled: 0 };
 
   Object.keys(groupedOrders).forEach(id => {
     const order = groupedOrders[id];
@@ -213,6 +213,7 @@ function renderOrderStats() {
   const cardConfig = [
     { key: "All", icon: "ri-file-list-3-line", color: "#3b82f6" },
     { key: "Pending", icon: "ri-time-line", color: "#f59e0b" },
+    { key: "Packed", icon: "ri-inbox-archive-line", color: "#06b6d4" },
     { key: "Dispatched", icon: "ri-truck-line", color: "#8b5cf6" },
     { key: "Delivered", icon: "ri-check-double-line", color: "#10b981" },
     { key: "Returned", icon: "ri-arrow-go-back-line", color: "#ef4444" },
@@ -837,6 +838,9 @@ function openOrderDetail(orderId) {
   const id = order.order_id;
   let actionsHtml = `<button class="btn btn-outline" style="flex:1;border:1px solid var(--border);background:transparent;color:var(--text)" onclick="closeOrderDetail();printOrder('${id}')"><i class="ri-printer-line"></i> Print</button>`;
   if (order.delivery_status === "Pending") {
+    actionsHtml += `<button class="btn btn-info" style="flex:1" onclick="closeOrderDetail();quickUpdate('${id}','Packed')"><i class="ri-inbox-archive-line"></i> Pack</button>`;
+  }
+  if (order.delivery_status === "Packed") {
     actionsHtml += `<button class="btn btn-warning" style="flex:1" onclick="closeOrderDetail();quickUpdate('${id}','Dispatched')"><i class="ri-truck-line"></i> Dispatch</button>`;
   }
   if (order.delivery_status === "Dispatched") {
@@ -845,8 +849,8 @@ function openOrderDetail(orderId) {
   if (order.payment_status !== "Paid") {
     actionsHtml += `<button class="btn btn-success" style="flex:1" onclick="closeOrderDetail();openPaymentModal('${id}')"><i class="ri-money-dollar-circle-line"></i> Pay</button>`;
   }
-  // Edit Products — only for Pending orders
-  if (order.delivery_status === "Pending") {
+  // Edit Products — only for Pending or Packed orders
+  if (order.delivery_status === "Pending" || order.delivery_status === "Packed") {
     actionsHtml += `<button class="btn btn-outline" style="flex:1;border:1px solid var(--info);background:transparent;color:var(--info)" onclick="closeOrderDetail();openEditOrderModal('${id}')"><i class="ri-edit-line"></i> Edit</button>`;
   }
   actionsHtml += `<button class="btn btn-outline" style="flex:1;border:1px solid var(--border);background:transparent;color:var(--text)" onclick="closeOrderDetail();openUpdateModal('${id}')"><i class="ri-settings-4-line"></i> Update</button>`;

@@ -25,6 +25,7 @@
         <div class="tabs" id="statusTabs">
             <button class="tab-btn active" data-status="All">All</button>
             <button class="tab-btn" data-status="Pending">Pending</button>
+            <button class="tab-btn" data-status="Packed">Packed</button>
             <button class="tab-btn" data-status="Dispatched">Dispatched</button>
             <button class="tab-btn" data-status="Delivered">Delivered</button>
             <button class="tab-btn" data-status="Returned">Returned</button>
@@ -109,7 +110,7 @@
             <div class="modal-body">
                 <input type="hidden" id="updateOrderId">
                 <div class="form-group"><label>Delivery Status</label>
-                    <select id="updateDelivery"><option>Pending</option><option>Dispatched</option><option>Delivered</option><option>Returned</option><option>Cancelled</option></select>
+                    <select id="updateDelivery"><option>Pending</option><option>Packed</option><option>Dispatched</option><option>Delivered</option><option>Returned</option><option>Cancelled</option></select>
                 </div>
                 <div class="form-group"><label>Payment Status</label>
                     <select id="updatePayStatus"><option>Paid</option><option>Unpaid</option><option>Partial</option></select>

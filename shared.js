@@ -300,6 +300,7 @@ function getFirstImageUrl(...fields) {
 function createBadge(text, type) {
   const badgeMap = {
     Pending: "badge-warning",
+    Packed: "badge-info",
     Dispatched: "badge-info",
     Delivered: "badge-success",
     Returned: "badge-danger",

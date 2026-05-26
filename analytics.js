@@ -828,7 +828,7 @@ function renderRevenueVsCollection(data) {
 
 // ─── Delivery Pipeline ──────────────────────────────────
 function renderDeliveryChart(data) {
-  const statuses = { Pending: 0, Dispatched: 0, Delivered: 0, Returned: 0 };
+  const statuses = { Pending: 0, Packed: 0, Dispatched: 0, Delivered: 0, Returned: 0 };
   const seen = new Set();
   data.forEach((r) => {
     if (seen.has(r.order_id)) return;
