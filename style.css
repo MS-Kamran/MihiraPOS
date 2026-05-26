@@ -155,6 +155,8 @@ select option{background:var(--bg)}
 .btn-ghost:hover{color:var(--text);border-color:var(--text-muted)}
 .btn-info{background:var(--info);color:#fff}
 .btn-info:hover{filter:brightness(1.1)}
+.btn-outline{background:transparent;color:var(--text);border:1px solid var(--border)}
+.btn-outline:hover{background:rgba(0,0,0,0.05);border-color:var(--text-muted)}
 .btn-icon{width:36px;height:36px;padding:0;background:transparent;color:var(--text-muted);border:none;border-radius:var(--radius-sm);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:var(--transition)}
 .btn-icon:hover{background:rgba(0,0,0,0.08);color:var(--text)}
 .btn-icon.danger:hover{color:var(--danger);background:rgba(239,68,68,0.1)}
@@ -311,6 +313,15 @@ select option{background:var(--bg)}
 
   /* Main content adjustments for bottom nav */
   .main-content{padding:16px 12px 80px 12px;height:auto;min-height:100vh;overflow-y:auto}
+
+  /* Hide desktop sidebar footer actions on mobile */
+  .sidebar-footer-actions{display:none!important}
+
+  /* Mobile settings drawer — visible on mobile only */
+  .mobile-settings-drawer{display:flex!important}
+
+  /* Analytics date inputs side-by-side on mobile */
+  .analytics-date-row{flex-direction:row!important;flex-wrap:nowrap!important}
 
   /* Page header */
   .page-header{flex-direction:column;align-items:flex-start;gap:8px}
@@ -637,3 +648,15 @@ select option{background:var(--bg)}
     position: relative;
     width: 100%;
 }
+
+/* ─── Sidebar Footer Actions (desktop) ─── */
+.sidebar-footer-actions{margin-top:auto;padding:0 8px 12px;display:flex;flex-direction:column;gap:0}
+
+/* ─── Mobile Settings Drawer ─── */
+.mobile-settings-drawer{display:none;position:relative}
+.mobile-settings-toggle{width:100%;background:transparent;border:none;cursor:pointer;padding:8px 4px;font-size:18px;color:var(--text-muted);display:flex;flex-direction:column;align-items:center;gap:2px;transition:color 0.2s}
+.mobile-settings-toggle span{font-size:10px}
+.mobile-settings-panel{display:none;position:absolute;bottom:100%;left:50%;transform:translateX(-50%);background:var(--panel-solid);border:1px solid var(--border);border-radius:12px;padding:8px;box-shadow:0 -4px 20px rgba(0,0,0,0.25);min-width:120px;flex-direction:column;gap:4px;z-index:600}
+.mobile-settings-panel.open{display:flex}
+.mobile-settings-panel .nav-link{font-size:12px!important;padding:10px 12px!important;justify-content:flex-start!important;gap:8px!important;border-radius:8px}
+.mobile-settings-panel .nav-link:active{background:rgba(201,168,130,0.15)}

@@ -198,16 +198,32 @@ function renderSidebar() {
         <i class="ri-bar-chart-grouped-line"></i>
         <span>Analytics</span>
       </a>
-      <button class="nav-link" onclick="clearSystemCache()" style="background:transparent; border:none; width:100%; cursor:pointer; text-align:left; padding:12px 16px; border-radius:8px; display:flex; align-items:center; gap:12px;" data-tooltip="Clear Cache">
-        <i class="ri-refresh-line" style="font-size:20px; color:var(--text-muted);"></i>
-        <span style="font-weight:500;">Clear Cache</span>
-      </button>
     </nav>
-    <div style="margin-top:auto; padding: 0 8px 12px;">
+    <div class="sidebar-footer-actions">
       <button id="theme-toggle" class="nav-link" style="width:100%; background:transparent; border:none; cursor:pointer;" title="Toggle Theme">
         <i class="ri-moon-line" id="theme-icon"></i>
         <span>Dark Theme</span>
       </button>
+      <button class="nav-link" onclick="clearSystemCache()" style="background:transparent; border:none; width:100%; cursor:pointer; text-align:left; padding:12px 16px; border-radius:8px; display:flex; align-items:center; gap:12px;" data-tooltip="Clear Cache">
+        <i class="ri-refresh-line" style="font-size:20px; color:var(--text-muted);"></i>
+        <span style="font-weight:500;">Clear Cache</span>
+      </button>
+    </div>
+    <!-- Mobile-only: expandable settings drawer -->
+    <div class="mobile-settings-drawer">
+      <button id="mobileSettingsToggle" class="mobile-settings-toggle" title="Settings">
+        <i class="ri-settings-3-line"></i>
+      </button>
+      <div id="mobileSettingsPanel" class="mobile-settings-panel">
+        <button id="theme-toggle-mobile" class="nav-link" style="width:100%; background:transparent; border:none; cursor:pointer;" title="Toggle Theme">
+          <i class="ri-moon-line" id="theme-icon-mobile"></i>
+          <span>Theme</span>
+        </button>
+        <button class="nav-link" onclick="clearSystemCache()" style="background:transparent; border:none; width:100%; cursor:pointer;" data-tooltip="Clear Cache">
+          <i class="ri-refresh-line"></i>
+          <span>Cache</span>
+        </button>
+      </div>
     </div>
     <button id="sidebar-toggle" class="sidebar-toggle-btn" title="Toggle Sidebar">
       <i class="ri-menu-fold-line"></i>
@@ -216,33 +232,81 @@ function renderSidebar() {
 
   initSidebar();
   initThemeToggle();
+  initMobileSettingsDrawer();
 }
 
 // ─── Theme Toggle Logic ─────────────────────────────────
 function initThemeToggle() {
-  const btn = document.getElementById("theme-toggle");
-  const icon = document.getElementById("theme-icon");
-  if (!btn || !icon) return;
-
   const currentTheme = localStorage.getItem("mihira_theme") || "light";
-  if (currentTheme === "dark") {
-    document.documentElement.setAttribute("data-theme", "dark");
-    icon.className = "ri-sun-line";
-    btn.querySelector("span").textContent = "Light Theme";
+
+  function applyTheme(isDark) {
+    if (isDark) {
+      document.documentElement.setAttribute("data-theme", "dark");
+    } else {
+      document.documentElement.removeAttribute("data-theme");
+    }
+    localStorage.setItem("mihira_theme", isDark ? "dark" : "light");
+    syncThemeButtons(isDark);
   }
 
-  btn.addEventListener("click", () => {
-    const isDark = document.documentElement.getAttribute("data-theme") === "dark";
-    if (isDark) {
-      document.documentElement.removeAttribute("data-theme");
-      localStorage.setItem("mihira_theme", "light");
-      icon.className = "ri-moon-line";
-      btn.querySelector("span").textContent = "Dark Theme";
-    } else {
-      document.documentElement.setAttribute("data-theme", "dark");
-      localStorage.setItem("mihira_theme", "dark");
-      icon.className = "ri-sun-line";
-      btn.querySelector("span").textContent = "Light Theme";
+  function syncThemeButtons(isDark) {
+    // Desktop button
+    const icon = document.getElementById("theme-icon");
+    const btn = document.getElementById("theme-toggle");
+    if (icon) icon.className = isDark ? "ri-sun-line" : "ri-moon-line";
+    if (btn) {
+      const span = btn.querySelector("span");
+      if (span) span.textContent = isDark ? "Light Theme" : "Dark Theme";
+    }
+    // Mobile button
+    const iconM = document.getElementById("theme-icon-mobile");
+    const btnM = document.getElementById("theme-toggle-mobile");
+    if (iconM) iconM.className = isDark ? "ri-sun-line" : "ri-moon-line";
+    if (btnM) {
+      const spanM = btnM.querySelector("span");
+      if (spanM) spanM.textContent = isDark ? "Light" : "Dark";
+    }
+  }
+
+  // Set initial state
+  syncThemeButtons(currentTheme === "dark");
+
+  // Wire desktop toggle
+  const btn = document.getElementById("theme-toggle");
+  if (btn) {
+    btn.addEventListener("click", () => {
+      const isDark = document.documentElement.getAttribute("data-theme") === "dark";
+      applyTheme(!isDark);
+    });
+  }
+
+  // Wire mobile toggle
+  const btnM = document.getElementById("theme-toggle-mobile");
+  if (btnM) {
+    btnM.addEventListener("click", () => {
+      const isDark = document.documentElement.getAttribute("data-theme") === "dark";
+      applyTheme(!isDark);
+    });
+  }
+}
+
+// ─── Mobile Settings Drawer (expandable arrow) ──────────
+function initMobileSettingsDrawer() {
+  const toggle = document.getElementById("mobileSettingsToggle");
+  const panel = document.getElementById("mobileSettingsPanel");
+  if (!toggle || !panel) return;
+
+  toggle.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const isOpen = panel.classList.toggle("open");
+    toggle.querySelector("i").className = isOpen ? "ri-close-line" : "ri-settings-3-line";
+  });
+
+  // Close when tapping outside on mobile
+  document.addEventListener("click", (e) => {
+    if (!panel.contains(e.target) && !toggle.contains(e.target)) {
+      panel.classList.remove("open");
+      toggle.querySelector("i").className = "ri-settings-3-line";
     }
   });
 }
