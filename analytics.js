@@ -859,31 +859,30 @@ function renderLowStockTable() {
   const wrapper = document.getElementById("lowStockTableWrapper");
   if (!wrapper) return;
 
-  // Aggregate stock per product variant (NAME + COLOR + SIZE)
-  const variantMap = {};
+  // Aggregate stock by product NAME only (not per color/size variant)
+  const productMap = {};
   allInventory.forEach(item => {
     const name = item.NAME || "Unknown";
-    const color = item.COLOR || "—";
-    const size = item.SIZE || "—";
     const remaining = getStock(item);
     const setSize = parseInt(item["CHURI IN A SET"]) || 1;
-    const key = `${name}||${color}||${size}`;
 
-    if (!variantMap[key]) {
-      variantMap[key] = {
-        name, color, size,
+    if (!productMap[name]) {
+      productMap[name] = {
+        name,
         remaining: 0,
         totalCapacity: 0,
         imgUrl: getFirstImageUrl(item["IMAGE LINK"], item.IMAGES),
-        setSize
+        setSize,
+        variantCount: 0
       };
     }
-    variantMap[key].remaining += remaining;
-    variantMap[key].totalCapacity += (parseInt(item["TOTAL UNIT"]) || 0);
+    productMap[name].remaining += remaining;
+    productMap[name].totalCapacity += (parseInt(item["TOTAL UNIT"]) || 0);
+    productMap[name].variantCount++;
   });
 
   // Filter to items that still have stock > 0, sorted ascending by remaining
-  const lowStockItems = Object.values(variantMap)
+  const lowStockItems = Object.values(productMap)
     .filter(v => v.remaining > 0)
     .sort((a, b) => a.remaining - b.remaining)
     .slice(0, 10);
@@ -892,8 +891,6 @@ function renderLowStockTable() {
     wrapper.innerHTML = '<span style="color:var(--text-muted);font-size:13px;">No products currently in stock.</span>';
     return;
   }
-
-  const maxStock = Math.max(...lowStockItems.map(v => v.remaining));
 
   const rows = lowStockItems.map((item, idx) => {
     const pct = item.totalCapacity > 0 ? Math.round((item.remaining / item.totalCapacity) * 100) : 0;
@@ -912,7 +909,7 @@ function renderLowStockTable() {
         </td>
         <td>
           <div style="font-weight:600;font-size:13px;">${item.name}</div>
-          <div style="font-size:11px;color:var(--text-muted);">${item.color} · Sz ${item.size}</div>
+          <div style="font-size:11px;color:var(--text-muted);">${item.variantCount} variant${item.variantCount > 1 ? 's' : ''}</div>
         </td>
         <td style="text-align:right;font-weight:700;color:${urgencyColor};white-space:nowrap;">
           ${item.remaining} <span style="font-weight:400;font-size:11px;color:var(--text-muted);">(${setsDisplay})</span>
@@ -950,7 +947,21 @@ function renderTrendingFinishingSoon(salesData) {
   const wrapper = document.getElementById("trendingFinishTableWrapper");
   if (!wrapper) return;
 
-  // Step 1: Compute total sets sold per product name from sales data
+  // Determine date span of sales data to compute daily sell rate
+  let minDate = null;
+  let maxDate = null;
+  salesData.forEach(row => {
+    const d = parseOrderDate(row.date);
+    if (!d) return;
+    if (!minDate || d < minDate) minDate = d;
+    if (!maxDate || d > maxDate) maxDate = d;
+  });
+  const now = new Date();
+  const salesDays = minDate && maxDate
+    ? Math.max(1, Math.round((now - minDate) / (1000 * 60 * 60 * 24)))
+    : 30;
+
+  // Step 1: Compute total sets sold per product name
   const productSales = {};
   salesData.forEach(row => {
     const rawNames = String(row.category || "Unknown");
@@ -971,7 +982,7 @@ function renderTrendingFinishingSoon(salesData) {
     });
   });
 
-  // Step 2: Compute current stock per product name from inventory
+  // Step 2: Compute current stock per product name
   const productStock = {};
   const productMeta = {};
   allInventory.forEach(item => {
@@ -987,19 +998,21 @@ function renderTrendingFinishingSoon(salesData) {
     }
   });
 
-  // Step 3: Merge — only products with active sales AND remaining stock > 0
+  // Step 3: Merge — compute daily sell rate & estimated days left
   const merged = Object.keys(productSales)
     .filter(name => (productStock[name] || 0) > 0)
     .map(name => {
-      const sold = Math.round(productSales[name] * 10) / 10;
+      const totalSold = Math.round(productSales[name] * 10) / 10;
       const remaining = productStock[name] || 0;
       const meta = productMeta[name] || { setSize: 1, imgUrl: "" };
       const remainingSets = Math.round((remaining / meta.setSize) * 10) / 10;
-      // Urgency score: high sales + low stock = higher urgency
-      const urgencyScore = sold > 0 ? sold / Math.max(1, remainingSets) : 0;
-      return { name, sold, remaining, remainingSets, urgencyScore, ...meta };
+      const dailySellRate = totalSold / salesDays;
+      // Estimated days until stock runs out based on sell rate
+      const daysLeft = dailySellRate > 0 ? Math.round(remainingSets / dailySellRate) : 999;
+      return { name, totalSold, remaining, remainingSets, dailySellRate, daysLeft, ...meta };
     })
-    .sort((a, b) => b.urgencyScore - a.urgencyScore)
+    // Primary sort: fewest days left first (most urgent to source)
+    .sort((a, b) => a.daysLeft - b.daysLeft)
     .slice(0, 10);
 
   if (merged.length === 0) {
@@ -1008,13 +1021,20 @@ function renderTrendingFinishingSoon(salesData) {
   }
 
   const rows = merged.map((item, idx) => {
-    const isUrgent = item.remainingSets <= 5;
-    const isCritical = item.remainingSets <= 2;
+    const isCritical = item.daysLeft <= 7;
+    const isUrgent = item.daysLeft <= 14;
+    const daysColor = isCritical ? "var(--danger)" : isUrgent ? "var(--warning)" : "var(--success)";
+    const daysLabel = item.daysLeft >= 999 ? "∞" : `~${item.daysLeft}d`;
+
     const statusBadge = isCritical
-      ? '<span class="badge badge-danger">Critical</span>'
+      ? '<span class="badge badge-danger">Source Now</span>'
       : isUrgent
-        ? '<span class="badge badge-warning">Low</span>'
+        ? '<span class="badge badge-warning">Source Soon</span>'
         : '<span class="badge badge-success">OK</span>';
+
+    const dailyRateDisplay = item.dailySellRate >= 1
+      ? `${Math.round(item.dailySellRate * 10) / 10}/day`
+      : `${Math.round(item.dailySellRate * 70) / 10}/wk`;
 
     return `
       <tr>
@@ -1026,10 +1046,15 @@ function renderTrendingFinishingSoon(salesData) {
         </td>
         <td>
           <div style="font-weight:600;font-size:13px;">${item.name}</div>
+          <div style="font-size:11px;color:var(--text-muted);">Selling ${dailyRateDisplay}</div>
         </td>
-        <td style="text-align:right;font-weight:600;color:var(--info);">${item.sold} sets</td>
+        <td style="text-align:right;font-weight:600;color:var(--info);">${item.totalSold} sets</td>
         <td style="text-align:right;font-weight:700;color:${isCritical ? 'var(--danger)' : isUrgent ? 'var(--warning)' : 'var(--text)'};">
           ${item.remainingSets} sets <span style="font-weight:400;font-size:11px;color:var(--text-muted);">(${item.remaining} pcs)</span>
+        </td>
+        <td style="text-align:center;">
+          <div style="font-weight:800;font-size:15px;color:${daysColor};line-height:1;">${daysLabel}</div>
+          <div style="font-size:10px;color:var(--text-muted);">left</div>
         </td>
         <td style="text-align:center;">${statusBadge}</td>
       </tr>
@@ -1037,15 +1062,16 @@ function renderTrendingFinishingSoon(salesData) {
   }).join("");
 
   wrapper.innerHTML = `
-    <table class="data-table" style="min-width:560px;">
+    <table class="data-table" style="min-width:640px;">
       <thead>
         <tr>
           <th style="width:32px;">#</th>
           <th style="width:40px;"></th>
           <th>Product</th>
-          <th style="text-align:right;">Sold</th>
+          <th style="text-align:right;">Total Sold</th>
           <th style="text-align:right;">Stock Left</th>
-          <th style="text-align:center;">Status</th>
+          <th style="text-align:center;">Days Left</th>
+          <th style="text-align:center;">Action</th>
         </tr>
       </thead>
       <tbody>${rows}</tbody>
