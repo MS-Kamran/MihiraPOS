@@ -163,6 +163,8 @@ function refresh() {
   renderDeliveryChart(data);
   renderPaymentChart(data);
   renderLowStockAlerts();
+  renderLowStockTable();
+  renderTrendingFinishingSoon(validSalesData);
 }
 
 // ─── Sales Target Tracker ───────────────────────────────
@@ -850,6 +852,205 @@ function renderPaymentChart(data) {
     statuses[s] = (statuses[s] || 0) + 1;
   });
   createDoughnut("paymentChart", Object.keys(statuses), Object.values(statuses));
+}
+
+// ─── Top 10 Low Stock Products (Table) ──────────────────
+function renderLowStockTable() {
+  const wrapper = document.getElementById("lowStockTableWrapper");
+  if (!wrapper) return;
+
+  // Aggregate stock per product variant (NAME + COLOR + SIZE)
+  const variantMap = {};
+  allInventory.forEach(item => {
+    const name = item.NAME || "Unknown";
+    const color = item.COLOR || "—";
+    const size = item.SIZE || "—";
+    const remaining = getStock(item);
+    const setSize = parseInt(item["CHURI IN A SET"]) || 1;
+    const key = `${name}||${color}||${size}`;
+
+    if (!variantMap[key]) {
+      variantMap[key] = {
+        name, color, size,
+        remaining: 0,
+        totalCapacity: 0,
+        imgUrl: getFirstImageUrl(item["IMAGE LINK"], item.IMAGES),
+        setSize
+      };
+    }
+    variantMap[key].remaining += remaining;
+    variantMap[key].totalCapacity += (parseInt(item["TOTAL UNIT"]) || 0);
+  });
+
+  // Filter to items that still have stock > 0, sorted ascending by remaining
+  const lowStockItems = Object.values(variantMap)
+    .filter(v => v.remaining > 0)
+    .sort((a, b) => a.remaining - b.remaining)
+    .slice(0, 10);
+
+  if (lowStockItems.length === 0) {
+    wrapper.innerHTML = '<span style="color:var(--text-muted);font-size:13px;">No products currently in stock.</span>';
+    return;
+  }
+
+  const maxStock = Math.max(...lowStockItems.map(v => v.remaining));
+
+  const rows = lowStockItems.map((item, idx) => {
+    const pct = item.totalCapacity > 0 ? Math.round((item.remaining / item.totalCapacity) * 100) : 0;
+    const urgencyColor = pct <= 10 ? "var(--danger)" : pct <= 25 ? "var(--warning)" : "var(--success)";
+    const setsDisplay = item.setSize > 1
+      ? `${Math.floor(item.remaining / item.setSize)} sets`
+      : `${item.remaining} pcs`;
+
+    return `
+      <tr>
+        <td style="font-weight:600;color:var(--text-muted);text-align:center;width:32px;">${idx + 1}</td>
+        <td style="width:40px;">
+          ${item.imgUrl
+            ? `<img src="${item.imgUrl}" style="width:36px;height:36px;border-radius:6px;object-fit:cover;" referrerpolicy="no-referrer">`
+            : '<i class="ri-image-line" style="font-size:20px;color:var(--text-muted);"></i>'}
+        </td>
+        <td>
+          <div style="font-weight:600;font-size:13px;">${item.name}</div>
+          <div style="font-size:11px;color:var(--text-muted);">${item.color} · Sz ${item.size}</div>
+        </td>
+        <td style="text-align:right;font-weight:700;color:${urgencyColor};white-space:nowrap;">
+          ${item.remaining} <span style="font-weight:400;font-size:11px;color:var(--text-muted);">(${setsDisplay})</span>
+        </td>
+        <td style="width:120px;">
+          <div style="display:flex;align-items:center;gap:6px;">
+            <div style="flex:1;height:6px;background:rgba(0,0,0,0.06);border-radius:3px;overflow:hidden;">
+              <div style="height:100%;width:${pct}%;background:${urgencyColor};border-radius:3px;transition:width 0.4s;"></div>
+            </div>
+            <span style="font-size:10px;color:var(--text-muted);min-width:28px;text-align:right;">${pct}%</span>
+          </div>
+        </td>
+      </tr>
+    `;
+  }).join("");
+
+  wrapper.innerHTML = `
+    <table class="data-table" style="min-width:500px;">
+      <thead>
+        <tr>
+          <th style="width:32px;">#</th>
+          <th style="width:40px;"></th>
+          <th>Product</th>
+          <th style="text-align:right;">Remaining</th>
+          <th style="width:120px;">Stock Level</th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>
+  `;
+}
+
+// ─── Trending Products — Finishing Soon ─────────────────
+function renderTrendingFinishingSoon(salesData) {
+  const wrapper = document.getElementById("trendingFinishTableWrapper");
+  if (!wrapper) return;
+
+  // Step 1: Compute total sets sold per product name from sales data
+  const productSales = {};
+  salesData.forEach(row => {
+    const rawNames = String(row.category || "Unknown");
+    const rawQtys = String(row.quantity || "1");
+    const rawSerials = String(row.serial || "");
+    const names = rawNames.split(",").map(s => s.trim());
+    const qtys = rawQtys.split(",").map(s => parseInt(s.trim()) || 1);
+    const serials = rawSerials.split(",").map(s => s.trim());
+
+    names.forEach((name, idx) => {
+      if (!name) return;
+      let qty = qtys[idx] || qtys[0] || 1;
+      const serial = serials[idx] || serials[0];
+      const invItem = allInventory.find(i => String(i.SERIAL) === serial);
+      const setSize = invItem ? (parseInt(invItem["CHURI IN A SET"]) || 1) : 1;
+      if (qty > 500 || qty <= 0) qty = setSize;
+      productSales[name] = (productSales[name] || 0) + (qty / setSize);
+    });
+  });
+
+  // Step 2: Compute current stock per product name from inventory
+  const productStock = {};
+  const productMeta = {};
+  allInventory.forEach(item => {
+    const name = item.NAME || "Unknown";
+    const remaining = getStock(item);
+    const setSize = parseInt(item["CHURI IN A SET"]) || 1;
+    productStock[name] = (productStock[name] || 0) + remaining;
+    if (!productMeta[name]) {
+      productMeta[name] = {
+        setSize,
+        imgUrl: getFirstImageUrl(item["IMAGE LINK"], item.IMAGES)
+      };
+    }
+  });
+
+  // Step 3: Merge — only products with active sales AND remaining stock > 0
+  const merged = Object.keys(productSales)
+    .filter(name => (productStock[name] || 0) > 0)
+    .map(name => {
+      const sold = Math.round(productSales[name] * 10) / 10;
+      const remaining = productStock[name] || 0;
+      const meta = productMeta[name] || { setSize: 1, imgUrl: "" };
+      const remainingSets = Math.round((remaining / meta.setSize) * 10) / 10;
+      // Urgency score: high sales + low stock = higher urgency
+      const urgencyScore = sold > 0 ? sold / Math.max(1, remainingSets) : 0;
+      return { name, sold, remaining, remainingSets, urgencyScore, ...meta };
+    })
+    .sort((a, b) => b.urgencyScore - a.urgencyScore)
+    .slice(0, 10);
+
+  if (merged.length === 0) {
+    wrapper.innerHTML = '<span style="color:var(--text-muted);font-size:13px;">No trending products at risk.</span>';
+    return;
+  }
+
+  const rows = merged.map((item, idx) => {
+    const isUrgent = item.remainingSets <= 5;
+    const isCritical = item.remainingSets <= 2;
+    const statusBadge = isCritical
+      ? '<span class="badge badge-danger">Critical</span>'
+      : isUrgent
+        ? '<span class="badge badge-warning">Low</span>'
+        : '<span class="badge badge-success">OK</span>';
+
+    return `
+      <tr>
+        <td style="font-weight:600;color:var(--text-muted);text-align:center;width:32px;">${idx + 1}</td>
+        <td style="width:40px;">
+          ${item.imgUrl
+            ? `<img src="${item.imgUrl}" style="width:36px;height:36px;border-radius:6px;object-fit:cover;" referrerpolicy="no-referrer">`
+            : '<i class="ri-image-line" style="font-size:20px;color:var(--text-muted);"></i>'}
+        </td>
+        <td>
+          <div style="font-weight:600;font-size:13px;">${item.name}</div>
+        </td>
+        <td style="text-align:right;font-weight:600;color:var(--info);">${item.sold} sets</td>
+        <td style="text-align:right;font-weight:700;color:${isCritical ? 'var(--danger)' : isUrgent ? 'var(--warning)' : 'var(--text)'};">
+          ${item.remainingSets} sets <span style="font-weight:400;font-size:11px;color:var(--text-muted);">(${item.remaining} pcs)</span>
+        </td>
+        <td style="text-align:center;">${statusBadge}</td>
+      </tr>
+    `;
+  }).join("");
+
+  wrapper.innerHTML = `
+    <table class="data-table" style="min-width:560px;">
+      <thead>
+        <tr>
+          <th style="width:32px;">#</th>
+          <th style="width:40px;"></th>
+          <th>Product</th>
+          <th style="text-align:right;">Sold</th>
+          <th style="text-align:right;">Stock Left</th>
+          <th style="text-align:center;">Status</th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>
+  `;
 }
 
 // ─── Downloads ──────────────────────────────────────────
