@@ -895,9 +895,8 @@ function renderLowStockTable() {
   const rows = lowStockItems.map((item, idx) => {
     const pct = item.totalCapacity > 0 ? Math.round((item.remaining / item.totalCapacity) * 100) : 0;
     const urgencyColor = pct <= 10 ? "var(--danger)" : pct <= 25 ? "var(--warning)" : "var(--success)";
-    const setsDisplay = item.setSize > 1
-      ? `${Math.floor(item.remaining / item.setSize)} sets`
-      : `${item.remaining} pcs`;
+    const setsDisplay = Math.floor(item.remaining / item.setSize);
+    const piecesDisplay = item.remaining;
 
     return `
       <tr>
@@ -911,8 +910,9 @@ function renderLowStockTable() {
           <div style="font-weight:600;font-size:13px;">${item.name}</div>
           <div style="font-size:11px;color:var(--text-muted);">${item.variantCount} variant${item.variantCount > 1 ? 's' : ''}</div>
         </td>
-        <td style="text-align:right;font-weight:700;color:${urgencyColor};white-space:nowrap;">
-          ${item.remaining} <span style="font-weight:400;font-size:11px;color:var(--text-muted);">(${setsDisplay})</span>
+        <td style="text-align:right;white-space:nowrap;">
+          <div style="font-weight:800;font-size:16px;color:${urgencyColor};">${setsDisplay} <span style="font-size:12px;font-weight:600;">Sets</span></div>
+          <div style="font-size:11px;color:var(--text-muted);">${piecesDisplay} Pcs Total</div>
         </td>
         <td style="width:120px;">
           <div style="display:flex;align-items:center;gap:6px;">
@@ -1048,9 +1048,12 @@ function renderTrendingFinishingSoon(salesData) {
           <div style="font-weight:600;font-size:13px;">${item.name}</div>
           <div style="font-size:11px;color:var(--text-muted);">Selling ${dailyRateDisplay}</div>
         </td>
-        <td style="text-align:right;font-weight:600;color:var(--info);">${item.totalSold} sets</td>
-        <td style="text-align:right;font-weight:700;color:${isCritical ? 'var(--danger)' : isUrgent ? 'var(--warning)' : 'var(--text)'};">
-          ${item.remainingSets} sets <span style="font-weight:400;font-size:11px;color:var(--text-muted);">(${item.remaining} pcs)</span>
+        <td style="text-align:right;">
+          <div style="font-weight:800;font-size:15px;color:var(--info);">${item.totalSold} <span style="font-size:11px;font-weight:600;">Sets</span></div>
+        </td>
+        <td style="text-align:right;white-space:nowrap;">
+          <div style="font-weight:800;font-size:16px;color:${isCritical ? 'var(--danger)' : isUrgent ? 'var(--warning)' : 'var(--text)'};">${item.remainingSets} <span style="font-size:12px;font-weight:600;">Sets</span></div>
+          <div style="font-size:11px;color:var(--text-muted);">${item.remaining} Pcs Total</div>
         </td>
         <td style="text-align:center;">
           <div style="font-weight:800;font-size:15px;color:${daysColor};line-height:1;">${daysLabel}</div>
