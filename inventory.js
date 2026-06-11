@@ -39,7 +39,6 @@ function populateFiltersAndRender() {
   populateDropdown(document.getElementById("filterColor"), extractUniqueValues(inventory, "COLOR"), "All Colors");
   populateDropdown(document.getElementById("filterSize"), extractUniqueValues(inventory, "SIZE"), "All Sizes");
   populateSuggestions();
-  renderSoldPercentBanner();
   renderStats();
   renderGrid();
 }
@@ -57,6 +56,12 @@ function populateSuggestions() {
 
 function renderStats() {
   const totalSKUs = inventory.length;
+  // Total sets ever stocked (TOTAL UNIT / set size)
+  const totalSetsEver = inventory.reduce((s, i) => {
+    const totalUnit = parseInt(i["TOTAL UNIT"]) || 0;
+    const setSize = parseInt(i["CHURI IN A SET"]) || 1;
+    return s + Math.round(totalUnit / setSize);
+  }, 0);
   // Remaining sets = sets currently available in stock
   const remainingSets = inventory.reduce((s, i) => {
     const stock = getStock(i);
@@ -69,6 +74,7 @@ function renderStats() {
     const setSize = parseInt(i["CHURI IN A SET"]) || 1;
     return s + Math.round(sold / setSize);
   }, 0);
+  const soldPercent = totalSetsEver > 0 ? Math.round((soldSets / totalSetsEver) * 100) : 0;
   const lowStock = inventory.filter((i) => { const q = getStock(i); return q > 0 && q < 5; }).length;
   const outOfStock = inventory.filter((i) => getStock(i) <= 0).length;
   // Total value of remaining stock
@@ -87,6 +93,7 @@ function renderStats() {
   }, 0);
 
   document.getElementById("statsRow").innerHTML = `
+    <div class="stat-card glass"><div class="stat-icon gold"><i class="ri-percent-line"></i></div><div class="stat-label">Stock Sold</div><div class="stat-value">${soldPercent}%</div></div>
     <div class="stat-card glass"><div class="stat-icon blue"><i class="ri-archive-line"></i></div><div class="stat-label">Total SKUs</div><div class="stat-value">${totalSKUs}</div></div>
     <div class="stat-card glass"><div class="stat-icon green"><i class="ri-stack-line"></i></div><div class="stat-label">Remaining Sets</div><div class="stat-value">${remainingSets}</div></div>
     <div class="stat-card glass"><div class="stat-icon indigo"><i class="ri-shopping-bag-3-line"></i></div><div class="stat-label">Sold Sets</div><div class="stat-value">${soldSets}</div></div>
@@ -97,50 +104,6 @@ function renderStats() {
   `;
 }
 
-function renderSoldPercentBanner() {
-  const totalUnits = inventory.reduce((sum, item) => sum + (parseInt(item["TOTAL UNIT"]) || 0), 0);
-  const totalSold = inventory.reduce((sum, item) => sum + (parseInt(item["SOLD"]) || 0), 0);
-  const percent = totalUnits > 0 ? Math.round((totalSold / totalUnits) * 100) : 0;
-
-  // Color-code: green ≤40%, amber 41-70%, red >70%
-  let strokeColor = "var(--success)";
-  if (percent > 70) strokeColor = "var(--danger)";
-  else if (percent > 40) strokeColor = "var(--warning)";
-
-  const radius = 36;
-  const circumference = 2 * Math.PI * radius;
-  const dashOffset = circumference - (circumference * percent) / 100;
-
-  document.getElementById("soldPercentBanner").innerHTML = `
-    <div class="sold-percent-ring">
-      <svg viewBox="0 0 90 90">
-        <circle class="ring-track" cx="45" cy="45" r="${radius}"></circle>
-        <circle class="ring-fill" cx="45" cy="45" r="${radius}"
-          stroke="${strokeColor}"
-          stroke-dasharray="${circumference}"
-          stroke-dashoffset="${dashOffset}"></circle>
-      </svg>
-      <div class="sold-percent-value">${percent}%</div>
-    </div>
-    <div class="sold-percent-body">
-      <div class="sold-percent-title">Stock Sold</div>
-      <div class="sold-percent-subtitle">${percent}% of your total inventory has been sold</div>
-      <div class="sold-percent-details">
-        <div class="sold-percent-detail">
-          <span class="sold-percent-detail-label">Total Units</span>
-          <span class="sold-percent-detail-value">${totalUnits.toLocaleString()}</span>
-        </div>
-        <div class="sold-percent-detail">
-          <span class="sold-percent-detail-label">Units Sold</span>
-          <span class="sold-percent-detail-value" style="color:${strokeColor}">${totalSold.toLocaleString()}</span>
-        </div>
-        <div class="sold-percent-detail">
-          <span class="sold-percent-detail-label">Remaining</span>
-          <span class="sold-percent-detail-value">${(totalUnits - totalSold).toLocaleString()}</span>
-        </div>
-      </div>
-    </div>`;
-}
 
 function resetFilters() {
   document.getElementById("searchInput").value = "";
