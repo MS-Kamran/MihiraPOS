@@ -92,8 +92,12 @@ function renderStats() {
       return s + sets * (parseFloat(i["SELLING PRICE"]) || 0);
   }, 0);
 
+  const totalPotentialRevenue = totalSaleValue + totalValue;
+  const revenuePercent = totalPotentialRevenue > 0 ? Math.round((totalSaleValue / totalPotentialRevenue) * 100) : 0;
+
   document.getElementById("statsRow").innerHTML = `
     <div class="stat-card glass"><div class="stat-icon gold"><i class="ri-percent-line"></i></div><div class="stat-label">Stock Sold</div><div class="stat-value">${soldPercent}%</div></div>
+    <div class="stat-card glass"><div class="stat-icon green"><i class="ri-funds-line"></i></div><div class="stat-label">Revenue Sold</div><div class="stat-value">${revenuePercent}%</div></div>
     <div class="stat-card glass"><div class="stat-icon blue"><i class="ri-archive-line"></i></div><div class="stat-label">Total SKUs</div><div class="stat-value">${totalSKUs}</div></div>
     <div class="stat-card glass"><div class="stat-icon green"><i class="ri-stack-line"></i></div><div class="stat-label">Remaining Sets</div><div class="stat-value">${remainingSets}</div></div>
     <div class="stat-card glass"><div class="stat-icon indigo"><i class="ri-shopping-bag-3-line"></i></div><div class="stat-label">Sold Sets</div><div class="stat-value">${soldSets}</div></div>
