@@ -39,6 +39,7 @@ function populateFiltersAndRender() {
   populateDropdown(document.getElementById("filterColor"), extractUniqueValues(inventory, "COLOR"), "All Colors");
   populateDropdown(document.getElementById("filterSize"), extractUniqueValues(inventory, "SIZE"), "All Sizes");
   populateSuggestions();
+  renderSoldPercentBanner();
   renderStats();
   renderGrid();
 }
@@ -94,6 +95,51 @@ function renderStats() {
     <div class="stat-card glass"><div class="stat-icon cyan"><i class="ri-price-tag-3-line"></i></div><div class="stat-label">Stock Value</div><div class="stat-value">${formatCurrency(totalValue)}</div></div>
     <div class="stat-card glass"><div class="stat-icon violet"><i class="ri-money-dollar-circle-line"></i></div><div class="stat-label">Total Sale Value</div><div class="stat-value">${formatCurrency(totalSaleValue)}</div></div>
   `;
+}
+
+function renderSoldPercentBanner() {
+  const totalUnits = inventory.reduce((sum, item) => sum + (parseInt(item["TOTAL UNIT"]) || 0), 0);
+  const totalSold = inventory.reduce((sum, item) => sum + (parseInt(item["SOLD"]) || 0), 0);
+  const percent = totalUnits > 0 ? Math.round((totalSold / totalUnits) * 100) : 0;
+
+  // Color-code: green ≤40%, amber 41-70%, red >70%
+  let strokeColor = "var(--success)";
+  if (percent > 70) strokeColor = "var(--danger)";
+  else if (percent > 40) strokeColor = "var(--warning)";
+
+  const radius = 36;
+  const circumference = 2 * Math.PI * radius;
+  const dashOffset = circumference - (circumference * percent) / 100;
+
+  document.getElementById("soldPercentBanner").innerHTML = `
+    <div class="sold-percent-ring">
+      <svg viewBox="0 0 90 90">
+        <circle class="ring-track" cx="45" cy="45" r="${radius}"></circle>
+        <circle class="ring-fill" cx="45" cy="45" r="${radius}"
+          stroke="${strokeColor}"
+          stroke-dasharray="${circumference}"
+          stroke-dashoffset="${dashOffset}"></circle>
+      </svg>
+      <div class="sold-percent-value">${percent}%</div>
+    </div>
+    <div class="sold-percent-body">
+      <div class="sold-percent-title">Stock Sold</div>
+      <div class="sold-percent-subtitle">${percent}% of your total inventory has been sold</div>
+      <div class="sold-percent-details">
+        <div class="sold-percent-detail">
+          <span class="sold-percent-detail-label">Total Units</span>
+          <span class="sold-percent-detail-value">${totalUnits.toLocaleString()}</span>
+        </div>
+        <div class="sold-percent-detail">
+          <span class="sold-percent-detail-label">Units Sold</span>
+          <span class="sold-percent-detail-value" style="color:${strokeColor}">${totalSold.toLocaleString()}</span>
+        </div>
+        <div class="sold-percent-detail">
+          <span class="sold-percent-detail-label">Remaining</span>
+          <span class="sold-percent-detail-value">${(totalUnits - totalSold).toLocaleString()}</span>
+        </div>
+      </div>
+    </div>`;
 }
 
 function resetFilters() {
