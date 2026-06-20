@@ -226,7 +226,8 @@ select option{background:var(--bg)}
 
 /* ─── Charts ─── */
 #analyticsContent{display:flex;flex-direction:column;gap:20px;flex:1;overflow-y:auto}
-.chart-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.chart-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
+.chart-row-3{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;grid-column:1/-1}
 .chart-card{padding:20px}
 .chart-card h3{font-size:14px;font-weight:600;margin-bottom:16px}
 .chart-card canvas{width:100%!important}
@@ -393,6 +394,7 @@ select option{background:var(--bg)}
 
   /* Chart grid */
   .chart-grid{grid-template-columns:1fr}
+  .chart-row-3{grid-template-columns:1fr}
   .chart-card{padding:14px}
 
   /* Pagination */
@@ -433,7 +435,8 @@ select option{background:var(--bg)}
 @media(min-width:769px) and (max-width:1024px){
   .pos-layout{grid-template-columns:1fr 320px}
   .product-grid{grid-template-columns:repeat(auto-fill,minmax(160px,1fr))}
-  .chart-grid{grid-template-columns:1fr}
+  .chart-grid{grid-template-columns:repeat(2,1fr)}
+  .chart-row-3{grid-template-columns:repeat(2,1fr)}
   #sidebar{width:var(--sidebar-collapsed)}
   #sidebar .brand-text,#sidebar .nav-link span{display:none}
   #sidebar .sidebar-brand{justify-content:center}
