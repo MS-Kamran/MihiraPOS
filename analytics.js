@@ -145,7 +145,7 @@ function refresh() {
   const validSalesData = data.filter(r => r.delivery_status !== "Returned" && r.delivery_status !== "Cancelled");
 
   renderSalesTargets(validSalesData);
-  renderKPIs(validSalesData);
+  renderKPIs(validSalesData, data);
   renderDailyChart(validSalesData);
   renderDailyOrdersChart(validSalesData);
   
@@ -305,7 +305,7 @@ function renderLowStockAlerts() {
 }
 
 // ─── KPIs ───────────────────────────────────────────────
-function renderKPIs(data) {
+function renderKPIs(data, allFilteredData) {
   const uniqueOrders = new Set(data.map((r) => r.order_id));
   const totalRevenue = data.reduce((s, r) => s + (parseFloat(r.total_amount) || parseFloat(r.total_price) || 0), 0);
   const aov = uniqueOrders.size > 0 ? totalRevenue / uniqueOrders.size : 0;
@@ -401,6 +401,30 @@ function renderKPIs(data) {
   const discountPercentage = (totalRevenue + totalDiscount) > 0 ? (totalDiscount / (totalRevenue + totalDiscount)) * 100 : 0;
   const avgDiscountPerPerson = customersWithDiscount.size > 0 ? (totalDiscount / customersWithDiscount.size) : 0;
 
+  // Return / Cancellation Metrics — computed from the full filtered dataset
+  const returnCancelOrders = (allFilteredData || []).filter(r =>
+    r.delivery_status === "Returned" || r.delivery_status === "Cancelled"
+  );
+  const returnCancelUniqueOrders = new Set(returnCancelOrders.map(r => r.order_id));
+  const allUniqueOrders = new Set((allFilteredData || []).map(r => r.order_id));
+  const returnCancelOrderPct = allUniqueOrders.size > 0
+    ? (returnCancelUniqueOrders.size / allUniqueOrders.size) * 100
+    : 0;
+
+  // Revenue lost to returns/cancellations (use first row per order to avoid double-counting)
+  const returnCancelOrderRowMap = {};
+  returnCancelOrders.forEach(r => {
+    if (!returnCancelOrderRowMap[r.order_id]) returnCancelOrderRowMap[r.order_id] = r;
+  });
+  const returnCancelRevenue = Object.values(returnCancelOrderRowMap)
+    .reduce((sum, r) => sum + (parseFloat(r.total_amount) || parseFloat(r.total_price) || 0), 0);
+
+  // Gross revenue = valid revenue + returned/cancelled revenue
+  const grossRevenue = totalRevenue + returnCancelRevenue;
+  const returnCancelRevenuePct = grossRevenue > 0
+    ? (returnCancelRevenue / grossRevenue) * 100
+    : 0;
+
   const kpiCards = [
     { icon: "ri-money-dollar-circle-line", color: "green", label: "Total Revenue", value: formatCurrency(totalRevenue) },
     { icon: "ri-line-chart-line", color: "blue", label: "Avg Order Value", value: formatCurrency(aov) },
@@ -414,6 +438,9 @@ function renderKPIs(data) {
     { icon: "ri-price-tag-3-line", color: "coral", label: "Total Discount Given", value: formatCurrency(totalDiscount) },
     { icon: "ri-percent-line", color: "emerald", label: "Discount %", value: discountPercentage.toFixed(1) + "%" },
     { icon: "ri-user-smile-line", color: "info", label: "Avg Discount / Person", value: formatCurrency(avgDiscountPerPerson) },
+    { icon: "ri-arrow-go-back-line", color: "red", label: "Return / Cancel %", value: returnCancelOrderPct.toFixed(1) + "%" },
+    { icon: "ri-refund-2-line", color: "red", label: "Return / Cancel Revenue", value: formatCurrency(returnCancelRevenue) },
+    { icon: "ri-funds-line", color: "yellow", label: "Revenue Loss %", value: returnCancelRevenuePct.toFixed(1) + "%" },
   ];
 
   document.getElementById("kpiRow").innerHTML = kpiCards.map((c, i) => `
