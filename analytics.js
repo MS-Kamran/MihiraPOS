@@ -835,9 +835,17 @@ function renderTopCustomers(data) {
 // ─── Revenue vs Collection ──────────────────────────────
 function renderRevenueVsCollection(data) {
   destroyChart("revenueVsCollectionChart");
-  const totalRevenue = data.reduce((s, r) => s + (parseFloat(r.total_amount) || parseFloat(r.total_price) || 0), 0);
-  const totalCollected = data.reduce((s, r) => s + (parseFloat(r.paid_amount) || 0), 0);
-  const totalDue = Math.max(0, totalRevenue - totalCollected);
+
+  // Deduplicate by order_id — keep one row per order to avoid double-counting
+  const orderRowMap = {};
+  data.forEach(r => {
+    if (!orderRowMap[r.order_id]) orderRowMap[r.order_id] = r;
+  });
+  const uniqueRows = Object.values(orderRowMap);
+
+  const totalRevenue = uniqueRows.reduce((s, r) => s + (parseFloat(r.total_amount) || parseFloat(r.total_price) || 0), 0);
+  const totalCollected = uniqueRows.reduce((s, r) => s + (parseFloat(r.paid_amount) || 0), 0);
+  const totalDue = uniqueRows.reduce((s, r) => s + (parseFloat(r.due_amount) || 0), 0);
 
   const ctx = document.getElementById("revenueVsCollectionChart").getContext("2d");
   charts["revenueVsCollectionChart"] = new Chart(ctx, {
