@@ -4,11 +4,13 @@
 let allOrders = [];
 let groupedOrders = {};
 let activeTab = "All";
+let activePayFilter = "All";
 let allReturns = [];
 let inventoryCache = [];
 
 document.addEventListener("DOMContentLoaded", async () => {
   setupTabs();
+  setupPaymentFilters();
   document.getElementById("searchOrders").addEventListener("input", renderOrders);
   document.getElementById("dateFrom").addEventListener("change", renderOrders);
   document.getElementById("dateTo").addEventListener("change", renderOrders);
@@ -35,6 +37,17 @@ function setupTabs() {
       activeTab = btn.dataset.status;
       renderOrders();
       toggleReturnsPanel();
+    });
+  });
+}
+
+function setupPaymentFilters() {
+  document.querySelectorAll("#paymentFilters .pill-filter").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      document.querySelector("#paymentFilters .pill-filter.active").classList.remove("active");
+      btn.classList.add("active");
+      activePayFilter = btn.dataset.pay;
+      renderOrders();
     });
   });
 }
@@ -78,7 +91,11 @@ window.resetOrderFilters = () => {
   document.getElementById("searchOrders").value = "";
   document.getElementById("dateFrom").value = "";
   document.getElementById("dateTo").value = "";
-  // Also switch back to All tab if needed
+  // Reset payment filter
+  document.querySelector('#paymentFilters .pill-filter.active')?.classList.remove('active');
+  document.querySelector('#paymentFilters .pill-filter[data-pay="All"]')?.classList.add('active');
+  activePayFilter = "All";
+  // Switch back to All tab
   document.querySelector('.tab-btn[data-status="All"]').click();
 };
 function groupOrders() {
@@ -261,8 +278,11 @@ function renderOrders() {
   orderIds.forEach((id) => {
     const order = groupedOrders[id];
 
-    // Tab filter
+    // Tab filter (delivery status)
     if (activeTab !== "All" && order.delivery_status !== activeTab) return;
+
+    // Payment status filter
+    if (activePayFilter !== "All" && order.payment_status !== activePayFilter) return;
 
     // Search filter
     if (search) {
