@@ -102,6 +102,7 @@ select option{background:var(--bg)}
 .stat-icon.gold{background:rgba(201,168,130,0.15);color:var(--primary)}
 .stat-icon.indigo{background:rgba(99,102,241,0.15);color:#6366f1}
 .stat-icon.violet{background:rgba(139,92,246,0.15);color:#8b5cf6}
+.stat-icon.orange{background:rgba(249,115,22,0.15);color:#f97316}
 .stat-card:hover .kpi-download,.chart-card:hover .btn-icon{opacity:1!important}
 .btn-icon{background:none;border:none;cursor:pointer;color:var(--text-muted);padding:4px;border-radius:4px;transition:var(--transition)}
 .btn-icon:hover{color:var(--primary);background:rgba(201,168,130,0.1)}
