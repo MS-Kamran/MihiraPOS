@@ -883,31 +883,41 @@ function renderProductStockChart(productName) {
     return;
   }
 
-  // Sort variants: by SIZE numerically, then by COLOR alphabetically
-  variants.sort((a, b) => {
-    const sizeA = parseFloat(a.SIZE) || 0;
-    const sizeB = parseFloat(b.SIZE) || 0;
-    if (sizeA !== sizeB) return sizeA - sizeB;
-    return (a.COLOR || "").localeCompare(b.COLOR || "");
-  });
+  const setSize = parseInt(variants[0]["CHURI IN A SET"]) || 1;
 
-  const labels = variants.map(v => {
-    const size = v.SIZE || "—";
+  // Build a map: color → { size → stock in sets }
+  const colorStockMap = {};  // { color: { size: sets, ... }, ... }
+  const allSizes = new Set();
+
+  variants.forEach(v => {
     const color = v.COLOR || "—";
-    return `Sz ${size} · ${color}`;
+    const size = v.SIZE || "—";
+    const stock = getStock(v);
+    const sets = Math.round((stock / setSize) * 10) / 10;
+
+    allSizes.add(size);
+    if (!colorStockMap[color]) colorStockMap[color] = {};
+    colorStockMap[color][size] = (colorStockMap[color][size] || 0) + sets;
   });
 
-  const stockValues = variants.map(v => getStock(v));
-  const totalUnitValues = variants.map(v => parseInt(v["TOTAL UNIT"]) || 0);
-  const soldValues = variants.map(v => parseInt(v["SOLD"]) || 0);
+  // Sort sizes numerically
+  const sortedSizes = [...allSizes].sort((a, b) => (parseFloat(a) || 0) - (parseFloat(b) || 0));
+
+  // Sort colors by total stock descending
+  const colorTotals = Object.entries(colorStockMap).map(([color, sizeMap]) => {
+    const total = Object.values(sizeMap).reduce((s, v) => s + v, 0);
+    return { color, total };
+  }).sort((a, b) => b.total - a.total);
+
+  const sortedColors = colorTotals.map(c => c.color);
 
   // Show selected product info
   if (selectedInfo) {
-    const totalStock = stockValues.reduce((a, b) => a + b, 0);
-    const totalSold = soldValues.reduce((a, b) => a + b, 0);
-    const totalCapacity = totalUnitValues.reduce((a, b) => a + b, 0);
-    const setSize = parseInt(variants[0]["CHURI IN A SET"]) || 1;
+    const totalStock = variants.reduce((s, v) => s + getStock(v), 0);
+    const totalSold = variants.reduce((s, v) => s + (parseInt(v["SOLD"]) || 0), 0);
+    const totalCapacity = variants.reduce((s, v) => s + (parseInt(v["TOTAL UNIT"]) || 0), 0);
     const stockSets = Math.floor(totalStock / setSize);
+    const soldSets = Math.floor(totalSold / setSize);
     const imgUrl = getFirstImageUrl(variants[0]["IMAGE LINK"], variants[0].IMAGES);
 
     selectedInfo.style.display = "flex";
@@ -919,7 +929,7 @@ function renderProductStockChart(productName) {
         : '<i class="ri-image-line" style="font-size:24px;color:var(--text-muted);flex-shrink:0;"></i>'}
       <div style="flex:1;min-width:0;">
         <div style="font-weight:700;font-size:14px;">${productName}</div>
-        <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">${variants.length} variant${variants.length > 1 ? 's' : ''} · Set size: ${setSize}</div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">${variants.length} variant${variants.length > 1 ? 's' : ''} · Set size: ${setSize} · ${sortedColors.length} color${sortedColors.length > 1 ? 's' : ''} · ${sortedSizes.length} size${sortedSizes.length > 1 ? 's' : ''}</div>
       </div>
       <div style="display:flex;gap:16px;flex-wrap:wrap;">
         <div style="text-align:center;">
@@ -927,16 +937,12 @@ function renderProductStockChart(productName) {
           <div style="font-size:10px;color:var(--text-muted);">Sets Left</div>
         </div>
         <div style="text-align:center;">
-          <div style="font-size:18px;font-weight:800;color:var(--info);">${totalStock}</div>
-          <div style="font-size:10px;color:var(--text-muted);">Pcs Left</div>
+          <div style="font-size:18px;font-weight:800;color:var(--accent);">${soldSets}</div>
+          <div style="font-size:10px;color:var(--text-muted);">Sets Sold</div>
         </div>
         <div style="text-align:center;">
-          <div style="font-size:18px;font-weight:800;color:var(--accent);">${totalSold}</div>
-          <div style="font-size:10px;color:var(--text-muted);">Pcs Sold</div>
-        </div>
-        <div style="text-align:center;">
-          <div style="font-size:18px;font-weight:800;color:var(--text-muted);">${totalCapacity}</div>
-          <div style="font-size:10px;color:var(--text-muted);">Total Capacity</div>
+          <div style="font-size:18px;font-weight:800;color:var(--text-muted);">${Math.floor(totalCapacity / setSize)}</div>
+          <div style="font-size:10px;color:var(--text-muted);">Total Sets</div>
         </div>
       </div>
     `;
@@ -946,20 +952,23 @@ function renderProductStockChart(productName) {
   chartWrapper.style.display = "none";
   canvas.style.display = "block";
 
-  // Generate distinct colors for each variant bar
-  const variantColors = variants.map((_, i) => {
-    const hue = (i * 137.5) % 360; // golden angle spacing for distinct hues
-    return `hsla(${hue}, 65%, 55%, 0.85)`;
-  });
-  const variantBorders = variants.map((_, i) => {
+  // Generate a dataset per size with distinct colors (golden angle spacing)
+  const datasets = sortedSizes.map((size, i) => {
     const hue = (i * 137.5) % 360;
-    return `hsla(${hue}, 65%, 45%, 1)`;
+    return {
+      label: `Size ${size}`,
+      data: sortedColors.map(color => colorStockMap[color]?.[size] || 0),
+      backgroundColor: `hsla(${hue}, 65%, 55%, 0.85)`,
+      borderColor: `hsla(${hue}, 65%, 42%, 1)`,
+      borderWidth: 1,
+      borderRadius: 5,
+    };
   });
 
   destroyChart("productStockChart");
   const ctx = canvas.getContext("2d");
 
-  // Bar label plugin
+  // Bar label plugin — show set count on top of each bar
   const stockLabelPlugin = {
     id: 'stockBarLabels',
     afterDatasetsDraw(chart) {
@@ -967,7 +976,7 @@ function renderProductStockChart(productName) {
       chart.data.datasets.forEach((dataset, di) => {
         chart.getDatasetMeta(di).data.forEach((bar, i) => {
           const val = dataset.data[i];
-          if (!val && val !== 0) return;
+          if (!val) return;
           ctx2.save();
           ctx2.font = 'bold 10px Inter, sans-serif';
           ctx2.fillStyle = 'rgba(255,255,255,0.9)';
@@ -983,25 +992,8 @@ function renderProductStockChart(productName) {
   charts["productStockChart"] = new Chart(ctx, {
     type: "bar",
     data: {
-      labels,
-      datasets: [
-        {
-          label: "Available Stock",
-          data: stockValues,
-          backgroundColor: variantColors,
-          borderColor: variantBorders,
-          borderWidth: 1,
-          borderRadius: 5,
-        },
-        {
-          label: "Sold",
-          data: soldValues,
-          backgroundColor: "rgba(239, 68, 68, 0.25)",
-          borderColor: "rgba(239, 68, 68, 0.5)",
-          borderWidth: 1,
-          borderRadius: 5,
-        }
-      ]
+      labels: sortedColors,
+      datasets
     },
     options: {
       responsive: true,
@@ -1013,29 +1005,24 @@ function renderProductStockChart(productName) {
         },
         tooltip: {
           callbacks: {
-            afterLabel: function(context) {
-              const idx = context.dataIndex;
-              const v = variants[idx];
-              const setSize = parseInt(v["CHURI IN A SET"]) || 1;
-              const stock = getStock(v);
-              const sets = Math.floor(stock / setSize);
-              const remainder = stock % setSize;
-              let extra = `Set size: ${setSize}`;
-              if (context.datasetIndex === 0) {
-                extra += `\n${sets} set${sets !== 1 ? 's' : ''}${remainder > 0 ? ' + ' + remainder + ' pcs' : ''}`;
-              }
-              return extra;
+            label: function(context) {
+              return `${context.dataset.label}: ${context.parsed.y} set${context.parsed.y !== 1 ? 's' : ''}`;
             }
           }
         }
       },
       scales: {
         x: {
+          title: { display: true, text: "Color", font: { size: 11, weight: '600' } },
           ticks: { autoSkip: false, maxRotation: 45, minRotation: 30, font: { size: 10 } }
         },
         y: {
           beginAtZero: true,
-          title: { display: true, text: "Pieces", font: { size: 11 } }
+          title: { display: true, text: "Sets", font: { size: 11, weight: '600' } },
+          ticks: {
+            stepSize: 1,
+            callback: function(value) { return Number.isInteger(value) ? value : ''; }
+          }
         }
       }
     },
