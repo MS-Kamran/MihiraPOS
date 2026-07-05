@@ -158,6 +158,7 @@ function refresh() {
   renderColorsChart(validSalesData);
   renderHighestStock();
   renderHighestStockColors();
+  renderProductStockExplorer();
   renderTopCustomers(validSalesData);
   renderRevenueVsCollection(validSalesData);
   renderDeliveryChart(data);
@@ -790,6 +791,256 @@ function renderHighestStockColors() {
   
   const sorted = Object.entries(colors).sort((a, b) => b[1] - a[1]).slice(0, 10);
   createHorizontalBar("highestStockColorsChart", sorted.map(s => s[0]), sorted.map(s => Math.round(s[1] * 10) / 10));
+}
+
+// ─── Product Stock Explorer ─────────────────────────────
+let productStockExplorerInitialized = false;
+
+function renderProductStockExplorer() {
+  if (productStockExplorerInitialized) return;
+  productStockExplorerInitialized = true;
+
+  const searchInput = document.getElementById("productStockSearch");
+  const dropdown = document.getElementById("productSearchDropdown");
+  if (!searchInput || !dropdown) return;
+
+  // Build unique product names from inventory
+  const productNames = [...new Set(allInventory.map(i => (i.NAME || "").trim()).filter(Boolean))].sort();
+
+  function renderDropdownItems(filter) {
+    const query = (filter || "").toLowerCase();
+    const matches = query
+      ? productNames.filter(n => n.toLowerCase().includes(query))
+      : productNames;
+
+    if (matches.length === 0) {
+      dropdown.innerHTML = '<div style="padding:12px 14px; color:var(--text-muted); font-size:12px;">No products found</div>';
+      dropdown.style.display = "block";
+      return;
+    }
+
+    dropdown.innerHTML = matches.slice(0, 30).map(name => {
+      const variants = allInventory.filter(i => i.NAME === name);
+      const totalStock = variants.reduce((s, i) => s + getStock(i), 0);
+      const imgUrl = getFirstImageUrl(variants[0]["IMAGE LINK"], variants[0].IMAGES);
+      return `
+        <div class="product-search-item" data-name="${name}" style="display:flex; align-items:center; gap:10px; padding:8px 12px; cursor:pointer; transition:background 0.15s; border-bottom:1px solid var(--border);">
+          ${imgUrl
+            ? `<img src="${imgUrl}" style="width:30px;height:30px;border-radius:5px;object-fit:cover;flex-shrink:0;" referrerpolicy="no-referrer">`
+            : '<i class="ri-image-line" style="font-size:18px;color:var(--text-muted);width:30px;text-align:center;flex-shrink:0;"></i>'}
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${name}</div>
+            <div style="font-size:10px;color:var(--text-muted);">${variants.length} variant${variants.length > 1 ? 's' : ''} · ${totalStock} pcs</div>
+          </div>
+        </div>
+      `;
+    }).join("");
+
+    dropdown.style.display = "block";
+
+    // Attach click handlers
+    dropdown.querySelectorAll(".product-search-item").forEach(el => {
+      el.addEventListener("click", () => {
+        const name = el.dataset.name;
+        searchInput.value = name;
+        dropdown.style.display = "none";
+        renderProductStockChart(name);
+      });
+      el.addEventListener("mouseenter", () => {
+        el.style.background = "var(--bg)";
+      });
+      el.addEventListener("mouseleave", () => {
+        el.style.background = "transparent";
+      });
+    });
+  }
+
+  searchInput.addEventListener("focus", () => renderDropdownItems(searchInput.value));
+  searchInput.addEventListener("input", () => renderDropdownItems(searchInput.value));
+
+  // Close dropdown when clicking outside
+  document.addEventListener("click", (e) => {
+    if (!document.getElementById("productSearchWrapper").contains(e.target)) {
+      dropdown.style.display = "none";
+    }
+  });
+}
+
+function renderProductStockChart(productName) {
+  const chartWrapper = document.getElementById("productStockChartWrapper");
+  const canvas = document.getElementById("productStockChart");
+  const selectedInfo = document.getElementById("productStockSelectedName");
+  if (!chartWrapper || !canvas) return;
+
+  // Find all inventory items matching this product name
+  const variants = allInventory.filter(i => (i.NAME || "").trim() === productName);
+
+  if (variants.length === 0) {
+    chartWrapper.style.display = "block";
+    chartWrapper.innerHTML = '<div style="text-align:center;padding:30px;color:var(--text-muted);font-size:13px;">No variants found for this product.</div>';
+    canvas.style.display = "none";
+    if (selectedInfo) selectedInfo.style.display = "none";
+    return;
+  }
+
+  // Sort variants: by SIZE numerically, then by COLOR alphabetically
+  variants.sort((a, b) => {
+    const sizeA = parseFloat(a.SIZE) || 0;
+    const sizeB = parseFloat(b.SIZE) || 0;
+    if (sizeA !== sizeB) return sizeA - sizeB;
+    return (a.COLOR || "").localeCompare(b.COLOR || "");
+  });
+
+  const labels = variants.map(v => {
+    const size = v.SIZE || "—";
+    const color = v.COLOR || "—";
+    return `Sz ${size} · ${color}`;
+  });
+
+  const stockValues = variants.map(v => getStock(v));
+  const totalUnitValues = variants.map(v => parseInt(v["TOTAL UNIT"]) || 0);
+  const soldValues = variants.map(v => parseInt(v["SOLD"]) || 0);
+
+  // Show selected product info
+  if (selectedInfo) {
+    const totalStock = stockValues.reduce((a, b) => a + b, 0);
+    const totalSold = soldValues.reduce((a, b) => a + b, 0);
+    const totalCapacity = totalUnitValues.reduce((a, b) => a + b, 0);
+    const setSize = parseInt(variants[0]["CHURI IN A SET"]) || 1;
+    const stockSets = Math.floor(totalStock / setSize);
+    const imgUrl = getFirstImageUrl(variants[0]["IMAGE LINK"], variants[0].IMAGES);
+
+    selectedInfo.style.display = "flex";
+    selectedInfo.style.alignItems = "center";
+    selectedInfo.style.gap = "12px";
+    selectedInfo.innerHTML = `
+      ${imgUrl
+        ? `<img src="${imgUrl}" style="width:42px;height:42px;border-radius:8px;object-fit:cover;flex-shrink:0;" referrerpolicy="no-referrer">`
+        : '<i class="ri-image-line" style="font-size:24px;color:var(--text-muted);flex-shrink:0;"></i>'}
+      <div style="flex:1;min-width:0;">
+        <div style="font-weight:700;font-size:14px;">${productName}</div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">${variants.length} variant${variants.length > 1 ? 's' : ''} · Set size: ${setSize}</div>
+      </div>
+      <div style="display:flex;gap:16px;flex-wrap:wrap;">
+        <div style="text-align:center;">
+          <div style="font-size:18px;font-weight:800;color:var(--primary);">${stockSets}</div>
+          <div style="font-size:10px;color:var(--text-muted);">Sets Left</div>
+        </div>
+        <div style="text-align:center;">
+          <div style="font-size:18px;font-weight:800;color:var(--info);">${totalStock}</div>
+          <div style="font-size:10px;color:var(--text-muted);">Pcs Left</div>
+        </div>
+        <div style="text-align:center;">
+          <div style="font-size:18px;font-weight:800;color:var(--accent);">${totalSold}</div>
+          <div style="font-size:10px;color:var(--text-muted);">Pcs Sold</div>
+        </div>
+        <div style="text-align:center;">
+          <div style="font-size:18px;font-weight:800;color:var(--text-muted);">${totalCapacity}</div>
+          <div style="font-size:10px;color:var(--text-muted);">Total Capacity</div>
+        </div>
+      </div>
+    `;
+  }
+
+  // Hide placeholder, show canvas
+  chartWrapper.style.display = "none";
+  canvas.style.display = "block";
+
+  // Generate distinct colors for each variant bar
+  const variantColors = variants.map((_, i) => {
+    const hue = (i * 137.5) % 360; // golden angle spacing for distinct hues
+    return `hsla(${hue}, 65%, 55%, 0.85)`;
+  });
+  const variantBorders = variants.map((_, i) => {
+    const hue = (i * 137.5) % 360;
+    return `hsla(${hue}, 65%, 45%, 1)`;
+  });
+
+  destroyChart("productStockChart");
+  const ctx = canvas.getContext("2d");
+
+  // Bar label plugin
+  const stockLabelPlugin = {
+    id: 'stockBarLabels',
+    afterDatasetsDraw(chart) {
+      const ctx2 = chart.ctx;
+      chart.data.datasets.forEach((dataset, di) => {
+        chart.getDatasetMeta(di).data.forEach((bar, i) => {
+          const val = dataset.data[i];
+          if (!val && val !== 0) return;
+          ctx2.save();
+          ctx2.font = 'bold 10px Inter, sans-serif';
+          ctx2.fillStyle = 'rgba(255,255,255,0.9)';
+          ctx2.textAlign = 'center';
+          ctx2.textBaseline = 'bottom';
+          ctx2.fillText(val, bar.x, bar.y - 3);
+          ctx2.restore();
+        });
+      });
+    }
+  };
+
+  charts["productStockChart"] = new Chart(ctx, {
+    type: "bar",
+    data: {
+      labels,
+      datasets: [
+        {
+          label: "Available Stock",
+          data: stockValues,
+          backgroundColor: variantColors,
+          borderColor: variantBorders,
+          borderWidth: 1,
+          borderRadius: 5,
+        },
+        {
+          label: "Sold",
+          data: soldValues,
+          backgroundColor: "rgba(239, 68, 68, 0.25)",
+          borderColor: "rgba(239, 68, 68, 0.5)",
+          borderWidth: 1,
+          borderRadius: 5,
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: {
+          display: true,
+          position: "top",
+          labels: { usePointStyle: true, padding: 12, font: { size: 11 } }
+        },
+        tooltip: {
+          callbacks: {
+            afterLabel: function(context) {
+              const idx = context.dataIndex;
+              const v = variants[idx];
+              const setSize = parseInt(v["CHURI IN A SET"]) || 1;
+              const stock = getStock(v);
+              const sets = Math.floor(stock / setSize);
+              const remainder = stock % setSize;
+              let extra = `Set size: ${setSize}`;
+              if (context.datasetIndex === 0) {
+                extra += `\n${sets} set${sets !== 1 ? 's' : ''}${remainder > 0 ? ' + ' + remainder + ' pcs' : ''}`;
+              }
+              return extra;
+            }
+          }
+        }
+      },
+      scales: {
+        x: {
+          ticks: { autoSkip: false, maxRotation: 45, minRotation: 30, font: { size: 10 } }
+        },
+        y: {
+          beginAtZero: true,
+          title: { display: true, text: "Pieces", font: { size: 11 } }
+        }
+      }
+    },
+    plugins: [stockLabelPlugin]
+  });
 }
 
 // ─── Trending Colors (Top 10) ───────────────────────────

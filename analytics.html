@@ -140,6 +140,31 @@
                     <canvas id="highestStockColorsChart"></canvas>
                 </div>
 
+                <!-- Product Stock Explorer -->
+                <div class="chart-card glass" style="grid-column:1/-1;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:8px;">
+                        <h3 style="font-size:14px; margin:0;"><i class="ri-search-eye-line" style="color:var(--primary);"></i> Product Stock Explorer</h3>
+                        <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                            <div style="position:relative;" id="productSearchWrapper">
+                                <input type="text" id="productStockSearch" class="form-input" placeholder="Search product name..." autocomplete="off"
+                                    style="padding:6px 10px 6px 30px; font-size:12px; height:34px; min-width:200px; width:260px;">
+                                <i class="ri-search-line" style="position:absolute; left:9px; top:50%; transform:translateY(-50%); font-size:14px; color:var(--text-muted); pointer-events:none;"></i>
+                                <div id="productSearchDropdown" style="display:none; position:absolute; top:100%; left:0; right:0; max-height:220px; overflow-y:auto; background:var(--panel-solid); border:1px solid var(--border); border-radius:8px; box-shadow:0 8px 24px rgba(0,0,0,0.12); z-index:50; margin-top:4px;"></div>
+                            </div>
+                            <button class="btn-icon" onclick="downloadChart('productStockChart', 'Product_Stock')" title="Download Chart"><i class="ri-download-cloud-2-line"></i></button>
+                        </div>
+                    </div>
+                    <div id="productStockSelectedName" style="display:none; margin-bottom:10px; padding:8px 12px; background:var(--bg); border:1px solid var(--border); border-radius:8px; font-size:13px; display:none;">
+                    </div>
+                    <div id="productStockChartWrapper">
+                        <div style="text-align:center; padding:40px 20px; color:var(--text-muted); font-size:13px;">
+                            <i class="ri-search-eye-line" style="font-size:32px; display:block; margin-bottom:8px; opacity:0.4;"></i>
+                            Search and select a product above to view its stock breakdown by size and color.
+                        </div>
+                    </div>
+                    <canvas id="productStockChart" style="display:none;"></canvas>
+                </div>
+
                 <!-- Trending Colors -->
                 <div class="chart-card glass">
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 8px;">
