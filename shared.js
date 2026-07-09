@@ -128,6 +128,35 @@ function showToast(message, type = "success") {
   }, 3000);
 }
 
+// ─── HTML Escape ────────────────────────────────────────
+function escapeHtml(str) {
+  const div = document.createElement("div");
+  div.textContent = str;
+  return div.innerHTML.replace(/'/g, "&#39;");
+}
+
+// ─── Copy to Clipboard ─────────────────────────────────
+function copyToClipboard(text, label, event) {
+  if (event) {
+    event.stopPropagation();
+    event.preventDefault();
+  }
+  navigator.clipboard.writeText(text).then(() => {
+    showToast(`${label || "Text"} copied!`, "success");
+  }).catch(() => {
+    // Fallback for older browsers / insecure contexts
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.position = "fixed";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand("copy");
+    document.body.removeChild(ta);
+    showToast(`${label || "Text"} copied!`, "success");
+  });
+}
+
 // ─── Currency Formatter ─────────────────────────────────
 function formatCurrency(amount) {
   const num = parseFloat(amount) || 0;

@@ -329,7 +329,7 @@ function renderOrders() {
       <div class="order-accordion-header" style="cursor:pointer;">
         <div class="accordion-left">
           <div style="font-weight:600;color:var(--text)">${order.order_id}</div>
-          <div style="font-size:12px;color:var(--text-muted)"><i class="ri-user-line"></i> ${order.customer_name} · ${order.customer_phone}${order.customer_address ? ' · ' + order.customer_address : ''}</div>
+          <div style="font-size:12px;color:var(--text-muted);display:flex;align-items:center;flex-wrap:wrap;gap:2px"><i class="ri-user-line"></i> <span class="copyable-info" onclick="copyToClipboard('${escapeHtml(order.customer_name)}', 'Name', event)" title="Click to copy name">${escapeHtml(order.customer_name)}<i class="ri-file-copy-line copy-indicator"></i></span> · <span class="copyable-info" onclick="copyToClipboard('${escapeHtml(order.customer_phone)}', 'Phone', event)" title="Click to copy phone">${escapeHtml(order.customer_phone)}<i class="ri-file-copy-line copy-indicator"></i></span>${order.customer_address ? ' · ' + escapeHtml(order.customer_address) : ''}</div>
           <div style="font-size:12px;color:var(--text-muted)">${cleanDate} · ${cleanTime} · ${itemCount} item${itemCount > 1 ? 's' : ''}</div>
           ${noteHtml}
         </div>
@@ -811,17 +811,27 @@ function openOrderDetail(orderId) {
         <div style="width:40px;height:40px;border-radius:50%;background:rgba(201,168,130,0.15);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
           <i class="ri-user-3-line" style="font-size:20px;color:var(--primary);"></i>
         </div>
-        <div>
-          <div style="font-size:17px;font-weight:700;color:var(--text);letter-spacing:0.3px;">${order.customer_name}</div>
-          <a href="tel:${order.customer_phone}" style="font-size:14px;color:var(--primary);text-decoration:none;font-weight:500;">
-            <i class="ri-phone-line" style="font-size:13px;"></i> ${order.customer_phone}
-          </a>
+        <div style="flex:1;">
+          <div style="display:flex;align-items:center;gap:6px;">
+            <span style="font-size:17px;font-weight:700;color:var(--text);letter-spacing:0.3px;">${escapeHtml(order.customer_name)}</span>
+            <span class="copyable-info" onclick="copyToClipboard('${escapeHtml(order.customer_name)}', 'Name', event)" title="Copy name" style="padding:4px 8px;border-radius:6px;background:rgba(201,168,130,0.1);cursor:pointer;">
+              <i class="ri-file-copy-line" style="font-size:14px;color:var(--accent);"></i>
+            </span>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;margin-top:4px;">
+            <a href="tel:${escapeHtml(order.customer_phone)}" style="font-size:14px;color:var(--primary);text-decoration:none;font-weight:500;">
+              <i class="ri-phone-line" style="font-size:13px;"></i> ${escapeHtml(order.customer_phone)}
+            </a>
+            <span class="copyable-info" onclick="copyToClipboard('${escapeHtml(order.customer_phone)}', 'Phone', event)" title="Copy phone" style="padding:4px 8px;border-radius:6px;background:rgba(201,168,130,0.1);cursor:pointer;">
+              <i class="ri-file-copy-line" style="font-size:14px;color:var(--accent);"></i>
+            </span>
+          </div>
         </div>
       </div>
       ${order.customer_address ? `
         <div style="display:flex;align-items:flex-start;gap:8px;padding-top:8px;border-top:1px dashed rgba(201,168,130,0.15);">
           <i class="ri-map-pin-2-line" style="font-size:16px;color:var(--warning);margin-top:1px;flex-shrink:0;"></i>
-          <span style="font-size:13px;color:var(--text-muted);line-height:1.5;">${order.customer_address}</span>
+          <span style="font-size:13px;color:var(--text-muted);line-height:1.5;">${escapeHtml(order.customer_address)}</span>
         </div>
       ` : ''}
     </div>

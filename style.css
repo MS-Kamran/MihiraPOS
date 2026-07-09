@@ -471,6 +471,36 @@ select option{background:var(--bg)}
   }
 }
 
+/* ─── Copyable Info (click-to-copy) ─── */
+.copyable-info {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.2s ease, color 0.2s ease;
+    position: relative;
+    user-select: none;
+    -webkit-user-select: none;
+}
+.copyable-info:hover {
+    background: rgba(201, 168, 130, 0.15);
+    color: var(--primary);
+}
+.copyable-info:active {
+    transform: scale(0.97);
+}
+.copyable-info .copy-indicator {
+    font-size: 12px;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+    color: var(--accent);
+}
+.copyable-info:hover .copy-indicator {
+    opacity: 1;
+}
+
 /* Order Accordion Styles */
 .order-accordion {
     background: var(--surface);
