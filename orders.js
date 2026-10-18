@@ -1,6 +1,18 @@
 /**
  * Orders Page — Grouped order cards with lifecycle actions
  */
+if (typeof window.formatStockDisplay !== 'function') {
+  window.formatStockDisplay = function(totalPieces, setSize) {
+    if (!setSize || setSize <= 1) return `${totalPieces} Pcs`;
+    const sets = Math.floor(totalPieces / setSize);
+    const pieces = totalPieces % setSize;
+    if (sets === 0 && pieces === 0) return "0";
+    if (sets === 0) return `${pieces} Pcs`;
+    if (pieces === 0) return `<span style="color:var(--accent);font-weight:700">${sets} Sets</span>`;
+    return `<span style="color:var(--accent);font-weight:700">${sets} Sets</span> + ${pieces} Pcs`;
+  };
+}
+
 let allOrders = [];
 let groupedOrders = {};
 let activeTab = "All";
@@ -180,14 +192,17 @@ function buildItemRows(order) {
     const setSize = match ? (parseInt(match["CHURI IN A SET"]) || 12) : 12;
     const setPrice = parseFloat(uPrice) * setSize;
     const qtyDisplay = formatStockDisplay(parseInt(qty), setSize);
+    const designLabel = match && match.Design ? ` (${match.Design})` : "";
+    const typeBadge = match && match.Type ? `<span class="badge-type">${match.Type}</span> ` : "";
+    const shadeLabel = match && match["Color Shade"] ? ` · ${match["Color Shade"]}` : "";
 
     return `
       <div class="order-item-card" style="display:flex; justify-content:space-between; align-items:center;">
         <div style="display:flex; gap:12px; align-items:center;">
           ${imgUrl ? `<img src="${imgUrl}" class="order-item-img" referrerpolicy="no-referrer">` : `<div class="order-item-img"></div>`}
           <div class="order-item-info">
-            <div class="order-item-title">${category}</div>
-            <div class="order-item-meta">${color} · Size ${size} · Serial: ${serial}</div>
+            <div class="order-item-title">${category}${designLabel}</div>
+            <div class="order-item-meta">${typeBadge}${color}${shadeLabel} · Size ${size} · Serial: ${serial}</div>
             <div class="order-item-meta" style="font-weight:600;color:var(--text);margin-top:4px;">${qtyDisplay} (৳${formatCurrency(setPrice)}/set)</div>
           </div>
         </div>
@@ -912,8 +927,10 @@ function buildDetailItemCards(order) {
     const size = sizes[idx] || sizes[0] || "-";
     const qty = quantities[idx] || quantities[0] || "1";
     const uPrice = unitPrices[idx] || unitPrices[0] || "0";
-    const imgUrl = getProductImage(serial, category, color);
-    const lineTotal = parseFloat(uPrice) * parseInt(qty);
+    const match = inventoryCache.find(i => String(i.SERIAL) === String(serial) || (String(i.NAME) === String(category) && String(i.COLOR) === String(color)));
+    const designLabel = match && match.Design ? ` (${match.Design})` : "";
+    const typeBadge = match && match.Type ? `<span class="badge-type">${match.Type}</span> ` : "";
+    const shadeLabel = match && match["Color Shade"] ? ` · ${match["Color Shade"]}` : "";
 
     const canReturn = order.delivery_status !== "Returned" && order.delivery_status !== "Pending";
     return `
@@ -921,8 +938,8 @@ function buildDetailItemCards(order) {
         <div style="display:flex;gap:12px;align-items:center;flex:1;min-width:0;">
           ${imgUrl ? `<img src="${imgUrl}" class="order-item-img" referrerpolicy="no-referrer">` : `<div class="order-item-img"></div>`}
           <div class="order-item-info" style="min-width:0;">
-            <div class="order-item-title">${category}</div>
-            <div class="order-item-meta">${color} · Size ${size} · #${serial}</div>
+            <div class="order-item-title">${category}${designLabel}</div>
+            <div class="order-item-meta">${typeBadge}${color}${shadeLabel} · Size ${size} · #${serial}</div>
             <div style="display:flex;gap:12px;margin-top:4px;font-size:12px;">
               <span style="font-weight:600;color:var(--text);">× ${qty} pcs</span>
               <span style="font-weight:600;color:var(--accent);">${formatCurrency(lineTotal)}</span>

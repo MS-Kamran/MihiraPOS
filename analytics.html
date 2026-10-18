@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Analytics — Mihira</title>
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="style.css?v=6">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
@@ -38,6 +38,46 @@
         <div id="loading" class="loading-state"><div class="spinner"></div><p>Loading analytics...</p></div>
 
         <div id="analyticsContent" class="hidden">
+            <!-- Product Filters Bar -->
+            <div class="glass" style="padding:12px 16px; margin-bottom:14px; display:flex; flex-wrap:wrap; gap:10px; align-items:center;">
+                <div style="font-size:12px; font-weight:600; color:var(--text-muted); display:flex; align-items:center; gap:6px;">
+                    <i class="ri-filter-3-line" style="color:var(--primary); font-size:16px;"></i> Product Filters:
+                </div>
+                
+                <!-- Priority 1 Branch: Type -> Name -> Design -->
+                <div class="filter-group-cascade">
+                    <select id="analyticsFilterType" style="font-size:12px; padding:6px 26px 6px 10px; height:34px;" title="Filter by Type">
+                        <option value="all">All Types</option>
+                    </select>
+                    <select id="analyticsFilterName" class="filter-cascading hidden" style="font-size:12px; padding:6px 26px 6px 10px; height:34px;" title="Filter by Name">
+                        <option value="all">All Names</option>
+                    </select>
+                    <select id="analyticsFilterDesign" class="filter-cascading hidden" style="font-size:12px; padding:6px 26px 6px 10px; height:34px;" title="Filter by Design">
+                        <option value="all">All Designs</option>
+                    </select>
+                </div>
+
+                <!-- Priority 2 Branch: Color -> Color Shade -->
+                <div class="filter-group-cascade">
+                    <select id="analyticsFilterColor" style="font-size:12px; padding:6px 26px 6px 10px; height:34px;" title="Filter by Color">
+                        <option value="all">All Colors</option>
+                    </select>
+                    <select id="analyticsFilterColorShade" class="filter-cascading hidden" style="font-size:12px; padding:6px 26px 6px 10px; height:34px;" title="Filter by Color Shade">
+                        <option value="all">All Shades</option>
+                    </select>
+                </div>
+
+                <!-- Size -->
+                <select id="analyticsFilterSize" style="font-size:12px; padding:6px 26px 6px 10px; height:34px;" title="Filter by Size">
+                    <option value="all">All Sizes</option>
+                </select>
+
+                <button class="btn btn-outline" id="analyticsResetProductFiltersBtn" onclick="resetAnalyticsProductFilters()" style="height:34px; padding:0 12px; font-size:12px;" title="Reset Product Filters">
+                    <i class="ri-filter-off-line"></i> Clear Product Filters
+                </button>
+                <div id="analyticsProductFilterNotice" style="font-size:12px; font-weight:600; color:var(--primary); margin-left:auto;"></div>
+            </div>
+
             <!-- Sales Target Tracker -->
             <div class="chart-card glass" style="margin-bottom:14px;">
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
@@ -141,28 +181,120 @@
                 </div>
 
                 <!-- Product Stock Explorer -->
-                <div class="chart-card glass" style="grid-column:1/-1;">
+                <div class="chart-card glass" id="productStockExplorerCard" style="grid-column:1/-1;">
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:8px;">
-                        <h3 style="font-size:14px; margin:0;"><i class="ri-search-eye-line" style="color:var(--primary);"></i> Product Stock Explorer</h3>
+                        <div style="display:flex; align-items:center; gap:8px;">
+                            <h3 style="font-size:15px; margin:0; display:flex; align-items:center; gap:6px;">
+                                <i class="ri-search-eye-line" style="color:var(--primary); font-size:18px;"></i> Product Stock Explorer
+                            </h3>
+                            <span class="badge-type" id="pseActiveCountBadge" style="font-size:10px;">Select Product</span>
+                        </div>
                         <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-                            <div style="position:relative;" id="productSearchWrapper">
-                                <input type="text" id="productStockSearch" class="form-input" placeholder="Search product name..." autocomplete="off"
-                                    style="padding:6px 10px 6px 30px; font-size:12px; height:34px; min-width:200px; width:260px;">
-                                <i class="ri-search-line" style="position:absolute; left:9px; top:50%; transform:translateY(-50%); font-size:14px; color:var(--text-muted); pointer-events:none;"></i>
-                                <div id="productSearchDropdown" style="display:none; position:absolute; top:100%; left:0; right:0; max-height:220px; overflow-y:auto; background:var(--panel-solid); border:1px solid var(--border); border-radius:8px; box-shadow:0 8px 24px rgba(0,0,0,0.12); z-index:50; margin-top:4px;"></div>
+                            <div class="pse-view-tabs" style="display:flex; background:rgba(0,0,0,0.06); padding:2px; border-radius:6px; gap:2px;">
+                                <button type="button" class="pse-tab-btn active" id="pseViewTabChart" onclick="switchPseView('chart')" title="Chart View">
+                                    <i class="ri-bar-chart-2-line"></i> Chart View
+                                </button>
+                                <button type="button" class="pse-tab-btn" id="pseViewTabTable" onclick="switchPseView('table')" title="Variant Matrix">
+                                    <i class="ri-table-line"></i> Variant Matrix
+                                </button>
                             </div>
-                            <button class="btn-icon" onclick="downloadChart('productStockChart', 'Product_Stock')" title="Download Chart"><i class="ri-download-cloud-2-line"></i></button>
+                            <button class="btn-icon" onclick="downloadChart('productStockChart', 'Product_Stock')" title="Download Chart" id="pseDownloadBtn"><i class="ri-download-cloud-2-line"></i></button>
                         </div>
                     </div>
-                    <div id="productStockSelectedName" style="display:none; margin-bottom:10px; padding:8px 12px; background:var(--bg); border:1px solid var(--border); border-radius:8px; font-size:13px; display:none;">
-                    </div>
-                    <div id="productStockChartWrapper">
-                        <div style="text-align:center; padding:40px 20px; color:var(--text-muted); font-size:13px;">
-                            <i class="ri-search-eye-line" style="font-size:32px; display:block; margin-bottom:8px; opacity:0.4;"></i>
-                            Search and select a product above to view its stock breakdown by size and color.
+
+                    <!-- Explorer Filter Toolbar -->
+                    <div class="pse-filter-bar">
+                        <!-- Type Filter -->
+                        <select id="pseFilterType" class="form-input" style="font-size:12px; padding:4px 24px 4px 8px; height:32px; min-width:110px;" title="Filter by Type">
+                            <option value="all">All Types</option>
+                        </select>
+
+                        <!-- Product Selector / Search Input with Dropdown -->
+                        <div style="position:relative; flex:1; min-width:200px; max-width:320px;" id="pseProductSearchWrapper">
+                            <input type="text" id="pseProductSearch" class="form-input" placeholder="Search product name or SKU..." autocomplete="off"
+                                style="padding:4px 10px 4px 28px; font-size:12px; height:32px; width:100%;">
+                            <i class="ri-search-line" style="position:absolute; left:8px; top:50%; transform:translateY(-50%); font-size:13px; color:var(--text-muted); pointer-events:none;"></i>
+                            <div id="pseProductSearchDropdown" style="display:none; position:absolute; top:100%; left:0; right:0; max-height:260px; overflow-y:auto; background:var(--panel-solid); border:1px solid var(--border); border-radius:8px; box-shadow:0 8px 24px rgba(0,0,0,0.18); z-index:70; margin-top:4px;"></div>
                         </div>
+
+                        <!-- Design Filter (Cascading) -->
+                        <select id="pseFilterDesign" class="form-input filter-cascading hidden" style="font-size:12px; padding:4px 24px 4px 8px; height:32px; min-width:110px;" title="Filter by Design">
+                            <option value="all">All Designs</option>
+                        </select>
+
+                        <!-- Color Filter (Cascading & Scoped) -->
+                        <select id="pseFilterColor" class="form-input" style="font-size:12px; padding:4px 24px 4px 8px; height:32px; min-width:110px;" title="Filter by Color">
+                            <option value="all">All Colors</option>
+                        </select>
+
+                        <!-- Color Shade Filter (Cascading) -->
+                        <select id="pseFilterColorShade" class="form-input filter-cascading hidden" style="font-size:12px; padding:4px 24px 4px 8px; height:32px; min-width:110px;" title="Filter by Color Shade">
+                            <option value="all">All Shades</option>
+                        </select>
+
+                        <!-- Size Filter -->
+                        <select id="pseFilterSize" class="form-input" style="font-size:12px; padding:4px 24px 4px 8px; height:32px; min-width:90px;" title="Filter by Size">
+                            <option value="all">All Sizes</option>
+                        </select>
+
+                        <!-- Stock Status Filter -->
+                        <select id="pseFilterStockStatus" class="form-input" style="font-size:12px; padding:4px 24px 4px 8px; height:32px; min-width:125px;" title="Filter by Stock Status">
+                            <option value="all">All Stock Status</option>
+                            <option value="in_stock">In Stock (&gt;0)</option>
+                            <option value="low_stock">Low Stock (&lt;5 pcs)</option>
+                            <option value="out_of_stock">Out of Stock</option>
+                            <option value="has_requests">Has Backorders (Requests)</option>
+                        </select>
+
+                        <!-- Unit Toggle (Sets vs Pieces) for Chart -->
+                        <select id="pseUnitToggle" class="form-input" style="font-size:12px; padding:4px 24px 4px 8px; height:32px; min-width:95px;" title="Display Unit">
+                            <option value="sets">In Sets</option>
+                            <option value="pieces">In Pieces</option>
+                        </select>
+
+                        <!-- Reset Explorer Filters Button -->
+                        <button type="button" class="btn btn-outline" id="pseResetBtn" onclick="resetPseFilters()" style="height:32px; padding:0 10px; font-size:11px;" title="Reset Product Stock Explorer">
+                            <i class="ri-refresh-line"></i> Reset
+                        </button>
                     </div>
-                    <canvas id="productStockChart" style="display:none;"></canvas>
+
+                    <!-- Selected Product Intelligence Banner -->
+                    <div id="pseProductBanner" class="pse-banner" style="display:none;"></div>
+
+                    <!-- Stock Health Alerts (Out of Stock / Requests / Low Stock) -->
+                    <div id="pseAlertsContainer" style="display:none; margin-bottom:14px; flex-direction:column; gap:8px;"></div>
+
+                    <!-- Chart View Container -->
+                    <div id="pseChartContainer">
+                        <div id="productStockChartWrapper">
+                            <div style="text-align:center; padding:40px 20px; color:var(--text-muted); font-size:13px;">
+                                <i class="ri-search-eye-line" style="font-size:36px; display:block; margin-bottom:8px; opacity:0.4; color:var(--primary);"></i>
+                                Search and select a product above to explore its stock levels, sizes, colors, and sales velocity.
+                            </div>
+                        </div>
+                        <canvas id="productStockChart" style="display:none; max-height:380px;"></canvas>
+                    </div>
+
+                    <!-- Table / Matrix View Container -->
+                    <div id="pseTableContainer" style="display:none; overflow-x:auto;">
+                        <table class="pse-table" id="pseVariantTable">
+                            <thead>
+                                <tr>
+                                    <th>Variant / SKU</th>
+                                    <th>Color &amp; Shade</th>
+                                    <th>Design</th>
+                                    <th>Size</th>
+                                    <th>Pcs/Set</th>
+                                    <th>Available Stock</th>
+                                    <th>Total Sold</th>
+                                    <th>Damaged</th>
+                                    <th>Customer Requests</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="pseVariantTableBody"></tbody>
+                        </table>
+                    </div>
                 </div>
 
                 <!-- Trending Colors -->
@@ -249,7 +381,7 @@
     </div>
 
     <script>window.APP_CONFIG={API_URL:"https://script.google.com/macros/s/AKfycbwQQrxrQ2A2XuH82kkXM69fX8uskeY93yjos1-AJzKHLhAc682fCLGajURcIlf2tw0M/exec"};</script>
-    <script src="shared.js"></script>
-    <script src="analytics.js"></script>
+    <script src="shared.js?v=6"></script>
+    <script src="analytics.js?v=6"></script>
 </body>
 </html>

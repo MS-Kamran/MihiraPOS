@@ -312,10 +312,14 @@ function handleRequestProduct(payload) {
   var data = sheet.getDataRange().getValues();
   var headers = data[0];
   var skuIndex = headers.indexOf("SERIAL");
-  var reqIndex = headers.indexOf("Request");
+  var reqIndex = headers.indexOf("REQUEST");
+  if (reqIndex === -1) reqIndex = headers.indexOf("Request");
+  if (reqIndex === -1) {
+    reqIndex = headers.findIndex(function(h) { return String(h).trim().toUpperCase() === "REQUEST"; });
+  }
 
   if (skuIndex === -1) return createJsonResponse({ error: "SERIAL column not found" });
-  if (reqIndex === -1) return createJsonResponse({ error: "Request column not found" });
+  if (reqIndex === -1) return createJsonResponse({ error: "REQUEST column not found" });
 
   for (var i = 1; i < data.length; i++) {
     if (String(data[i][skuIndex]) === serial) {

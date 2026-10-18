@@ -20,18 +20,47 @@
         </div>
 
         <!-- Stats -->
+        <div id="statsFilterNotice" class="stats-notice" style="display:none;"></div>
         <div class="stats-row" id="statsRow"></div>
 
         <!-- Filters -->
-        <div class="controls">
-            <div class="search-box">
+        <div class="controls" style="gap:10px; flex-wrap:wrap; align-items:center;">
+            <div class="search-box" style="flex:1; min-width:220px;">
                 <i class="ri-search-line"></i>
-                <input type="text" id="searchInput" placeholder="Search SKU, name, color...">
+                <input type="text" id="searchInput" placeholder="Search SKU, Type, Name, Color, Shade...">
             </div>
-            <select id="filterName"><option value="all">All Designs</option></select>
-            <select id="filterColor"><option value="all">All Colors</option></select>
-            <select id="filterSize"><option value="all">All Sizes</option></select>
-            <select id="filterStock"><option value="all">All Stock</option><option value="in_stock">In Stock</option><option value="low_stock">Low Stock</option><option value="out_of_stock">Out of Stock</option></select>
+
+            <!-- Priority 1 Branch: Type -> Name -> Design -->
+            <div class="filter-group-cascade">
+                <select id="filterType" title="Filter by Type">
+                    <option value="all">All Types</option>
+                </select>
+                <select id="filterName" class="filter-cascading hidden" title="Filter by Name">
+                    <option value="all">All Names</option>
+                </select>
+                <select id="filterDesign" class="filter-cascading hidden" title="Filter by Design">
+                    <option value="all">All Designs</option>
+                </select>
+            </div>
+
+            <!-- Priority 2 Branch: Color -> Color Shade -->
+            <div class="filter-group-cascade">
+                <select id="filterColor" title="Filter by Color">
+                    <option value="all">All Colors</option>
+                </select>
+                <select id="filterColorShade" class="filter-cascading hidden" title="Filter by Color Shade">
+                    <option value="all">All Shades</option>
+                </select>
+            </div>
+
+            <!-- Standard Filters -->
+            <select id="filterSize" title="Filter by Size"><option value="all">All Sizes</option></select>
+            <select id="filterStock" title="Filter by Stock">
+                <option value="all">All Stock</option>
+                <option value="in_stock">In Stock</option>
+                <option value="low_stock">Low Stock</option>
+                <option value="out_of_stock">Out of Stock</option>
+            </select>
             <button class="btn btn-outline" id="resetFiltersBtn" onclick="resetFilters()"><i class="ri-filter-off-line"></i> Clear Filters</button>
         </div>
 
@@ -66,12 +95,24 @@
                 <button class="btn-icon" onclick="closeAddModal()"><i class="ri-close-line"></i></button>
             </div>
             <div class="modal-body">
+                <datalist id="typeSuggestions"></datalist>
                 <datalist id="nameSuggestions"></datalist>
+                <datalist id="designSuggestions"></datalist>
                 <datalist id="colorSuggestions"></datalist>
+                <datalist id="shadeSuggestions"></datalist>
                 
                 <div class="form-group"><label>Images (Comma separated URLs)</label><input type="text" id="addImages" placeholder="https://..., https://..."></div>
-                <div class="form-group"><label>Name</label><input type="text" id="addName" list="nameSuggestions" placeholder="e.g. Glass Churi" autocomplete="off"></div>
-                <div class="form-group"><label>Color</label><input type="text" id="addColor" list="colorSuggestions" placeholder="e.g. Red" autocomplete="off"></div>
+                
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+                    <div class="form-group"><label>Type</label><input type="text" id="addType" list="typeSuggestions" placeholder="e.g. Kashmiri, KacherChuri" autocomplete="off"></div>
+                    <div class="form-group"><label>Name</label><input type="text" id="addName" list="nameSuggestions" placeholder="e.g. Crystal, Naga" autocomplete="off"></div>
+                </div>
+
+                <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
+                    <div class="form-group"><label>Design</label><input type="text" id="addDesign" list="designSuggestions" placeholder="e.g. Bala, Short" autocomplete="off"></div>
+                    <div class="form-group"><label>Color</label><input type="text" id="addColor" list="colorSuggestions" placeholder="e.g. Green, Red" autocomplete="off"></div>
+                    <div class="form-group"><label>Color Shade</label><input type="text" id="addShade" list="shadeSuggestions" placeholder="e.g. Deep, Light" autocomplete="off"></div>
+                </div>
                 
                 <div class="form-group">
                     <label>Sizes</label>
@@ -86,9 +127,9 @@
 
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
                     <div class="form-group"><label>Set Quantity</label><input type="number" id="addSetQty" placeholder="e.g. 10"></div>
-                    <div class="form-group"><label>Churi in a Set</label><input type="number" id="addChuriInSet" placeholder="e.g. 24"></div>
+                    <div class="form-group"><label>Churi in a Set</label><input type="number" id="addChuriInSet" placeholder="e.g. 12"></div>
                     <div class="form-group"><label>Last Price (Cost)</label><input type="number" id="addLastPrice" placeholder="e.g. 300"></div>
-                    <div class="form-group"><label>Selling Price</label><input type="number" id="addSellingPrice" placeholder="e.g. 500"></div>
+                    <div class="form-group"><label>Selling Price</label><input type="number" id="addSellingPrice" placeholder="e.g. 400"></div>
                 </div>
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-top:16px;">
                     <label style="display:flex; align-items:center; gap:8px; cursor:pointer; color:var(--text-muted); font-size:14px;">
@@ -104,7 +145,7 @@
     </div>
 
     <script>window.APP_CONFIG={API_URL:"https://script.google.com/macros/s/AKfycbwQQrxrQ2A2XuH82kkXM69fX8uskeY93yjos1-AJzKHLhAc682fCLGajURcIlf2tw0M/exec"};</script>
-    <script src="shared.js?v=3"></script>
-    <script src="inventory.js?v=3"></script>
+    <script src="shared.js?v=5"></script>
+    <script src="inventory.js?v=5"></script>
 </body>
 </html>

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'mihira-pos-v3';
+const CACHE_NAME = 'mihira-pos-v4';
 const ASSETS = [
   '/',
   '/index.html',
@@ -54,7 +54,8 @@ self.addEventListener('fetch', (event) => {
   }
   
   // For JS/CSS files, use network-first so code updates are never stale
-  const isCodeFile = event.request.url.endsWith('.js') || event.request.url.endsWith('.css');
+  const urlObj = new URL(event.request.url);
+  const isCodeFile = urlObj.pathname.endsWith('.js') || urlObj.pathname.endsWith('.css');
 
   if (isCodeFile) {
     event.respondWith(

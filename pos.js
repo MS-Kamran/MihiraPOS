@@ -1,5 +1,5 @@
 /**
- * POS Page Logic — Cart, Checkout, Inventory Display
+ * POS Page Logic — Cart, Checkout, 15-Day Trending Highlight, Cascading Priority Filters
  */
 let inventory = [];
 let cart = [];
@@ -7,12 +7,22 @@ let el = {};
 let currentPage = 1;
 const itemsPerPage = 20;
 
+// Trending sales tracker (last 15 days)
+let sales15dBySerial = {};
+let sales15dByName = {};
+
 document.addEventListener("DOMContentLoaded", async () => {
   el = {
     loading: document.getElementById("loading"),
     grid: document.getElementById("product-grid"),
     searchInput: document.getElementById("searchInput"),
-    visualFilters: document.getElementById("visualFilters"),
+    filterType: document.getElementById("filterType"),
+    filterName: document.getElementById("filterName"),
+    filterDesign: document.getElementById("filterDesign"),
+    filterColor: document.getElementById("filterColor"),
+    filterColorShade: document.getElementById("filterColorShade"),
+    filterSize: document.getElementById("filterSize"),
+    filterStock: document.getElementById("filterStock"),
     cartItems: document.getElementById("cart-items"),
     cartCount: document.getElementById("cartCount"),
     cartTotal: document.getElementById("cartTotal"),
@@ -43,11 +53,17 @@ document.addEventListener("DOMContentLoaded", async () => {
   };
 
   setupListeners();
-  await loadInventory();
+  await loadData();
 });
 
+/**
+ * ─── Filter Listeners & Cascading Priority Setup ─────────────────────────
+ * Priority Branch 1: Type (Priority 1) -> NAME (Priority 2) -> Design (Priority 3)
+ * Priority Branch 2: COLOR (Priority 1) -> Color Shade (Priority 2)
+ */
 function setupListeners() {
   const resetPageAndRender = () => { currentPage = 1; renderProducts(); };
+
   el.searchInput.addEventListener("input", resetPageAndRender);
   el.clearCartBtn.addEventListener("click", clearCart);
   el.checkoutBtn.addEventListener("click", handleCheckout);
@@ -61,46 +77,257 @@ function setupListeners() {
     recalcTotals();
   });
   el.discountValue.addEventListener("input", recalcTotals);
-  if(document.getElementById("filterName")) document.getElementById("filterName").addEventListener("change", resetPageAndRender);
-  if(document.getElementById("filterColor")) document.getElementById("filterColor").addEventListener("change", resetPageAndRender);
-  if(document.getElementById("filterSize")) document.getElementById("filterSize").addEventListener("change", resetPageAndRender);
-  if(document.getElementById("filterStock")) document.getElementById("filterStock").addEventListener("change", resetPageAndRender);
+
+  // Type change -> Cascades to Name filter and syncs Colors
+  if (el.filterType) {
+    el.filterType.addEventListener("change", () => {
+      currentPage = 1;
+      const selectedType = el.filterType.value;
+      if (selectedType === "all") {
+        el.filterName.classList.add("hidden");
+        el.filterName.value = "all";
+        el.filterDesign.classList.add("hidden");
+        el.filterDesign.value = "all";
+      } else {
+        const matching = inventory.filter(i => String(i.Type || "").trim() === selectedType);
+        const names = extractUniqueValues(matching, "NAME");
+        populateDropdown(el.filterName, names, "All Names");
+        el.filterName.value = "all";
+        el.filterName.classList.remove("hidden");
+        el.filterName.classList.add("filter-appear");
+
+        el.filterDesign.classList.add("hidden");
+        el.filterDesign.value = "all";
+      }
+      syncAvailableColors();
+      renderProducts();
+    });
+  }
+
+  // Name change -> Cascades to Design filter and syncs Colors
+  if (el.filterName) {
+    el.filterName.addEventListener("change", () => {
+      currentPage = 1;
+      const selectedType = el.filterType.value;
+      const selectedName = el.filterName.value;
+
+      if (selectedName === "all") {
+        el.filterDesign.classList.add("hidden");
+        el.filterDesign.value = "all";
+      } else {
+        const matching = inventory.filter(i =>
+          (selectedType === "all" || String(i.Type || "").trim() === selectedType) &&
+          String(i.NAME || "").trim() === selectedName
+        );
+        const designs = extractUniqueValues(matching, "Design");
+        if (designs.length > 0) {
+          populateDropdown(el.filterDesign, designs, "All Designs");
+          el.filterDesign.value = "all";
+          el.filterDesign.classList.remove("hidden");
+          el.filterDesign.classList.add("filter-appear");
+        } else {
+          el.filterDesign.classList.add("hidden");
+          el.filterDesign.value = "all";
+        }
+      }
+      syncAvailableColors();
+      renderProducts();
+    });
+  }
+
+  // Design change -> Syncs Colors
+  if (el.filterDesign) {
+    el.filterDesign.addEventListener("change", () => {
+      currentPage = 1;
+      syncAvailableColors();
+      renderProducts();
+    });
+  }
+
+  // Color change -> Cascades to Color Shade filter
+  if (el.filterColor) {
+    el.filterColor.addEventListener("change", () => {
+      currentPage = 1;
+      const scoped = getScopedItemsForColor();
+      syncAvailableShades(scoped, el.filterColor.value);
+      renderProducts();
+    });
+  }
+
+  if (el.filterColorShade) el.filterColorShade.addEventListener("change", resetPageAndRender);
+  if (el.filterSize) el.filterSize.addEventListener("change", resetPageAndRender);
+  if (el.filterStock) el.filterStock.addEventListener("change", resetPageAndRender);
 }
 
-async function loadInventory() {
-  // Instant render from cache
+function getScopedItemsForColor() {
+  const selectedType = el.filterType ? el.filterType.value : "all";
+  const selectedName = el.filterName ? el.filterName.value : "all";
+  const selectedDesign = el.filterDesign ? el.filterDesign.value : "all";
+
+  let scoped = inventory;
+  if (selectedType !== "all") scoped = scoped.filter(i => String(i.Type || "").trim() === selectedType);
+  if (selectedName !== "all") scoped = scoped.filter(i => String(i.NAME || "").trim() === selectedName);
+  if (selectedDesign !== "all") scoped = scoped.filter(i => String(i.Design || "").trim() === selectedDesign);
+  return scoped;
+}
+
+function syncAvailableColors() {
+  if (!el.filterColor) return;
+  const scoped = getScopedItemsForColor();
+  const availableColors = extractUniqueValues(scoped, "COLOR");
+  const prevColor = el.filterColor.value;
+
+  populateDropdown(el.filterColor, availableColors, "All Colors");
+
+  if (prevColor !== "all" && availableColors.includes(prevColor)) {
+    el.filterColor.value = prevColor;
+    syncAvailableShades(scoped, prevColor);
+  } else {
+    el.filterColor.value = "all";
+    if (el.filterColorShade) {
+      el.filterColorShade.value = "all";
+      el.filterColorShade.classList.add("hidden");
+    }
+  }
+}
+
+function syncAvailableShades(scopedItems, selectedColor) {
+  if (!el.filterColorShade) return;
+  if (selectedColor === "all") {
+    el.filterColorShade.value = "all";
+    el.filterColorShade.classList.add("hidden");
+    return;
+  }
+
+  const colorItems = scopedItems.filter(i => String(i.COLOR || "").trim() === selectedColor);
+  const availableShades = extractUniqueValues(colorItems, "Color Shade");
+
+  if (availableShades.length > 0) {
+    const prevShade = el.filterColorShade.value;
+    populateDropdown(el.filterColorShade, availableShades, "All Shades");
+    if (prevShade !== "all" && availableShades.includes(prevShade)) {
+      el.filterColorShade.value = prevShade;
+    } else {
+      el.filterColorShade.value = "all";
+    }
+    el.filterColorShade.classList.remove("hidden");
+    el.filterColorShade.classList.add("filter-appear");
+  } else {
+    el.filterColorShade.value = "all";
+    el.filterColorShade.classList.add("hidden");
+  }
+}
+
+/**
+ * ─── Data Loading & 15-Day Trending Calculation ───────────────────────────
+ */
+async function loadData() {
+  // Instant render from cached inventory
   const cached = Api.getCachedInventory();
   if (cached) {
     inventory = cached.filter((item) => (item.SKU || item.SERIAL) && item.NAME);
     inventory.sort((a, b) => (parseInt(b.SOLD) || 0) - (parseInt(a.SOLD) || 0));
-    populateFiltersAndShow();
+    populateInitialFilters();
+    renderProducts();
+    el.loading.classList.add("hidden");
+    el.grid.classList.remove("hidden");
   }
 
   try {
-    const data = await Api.getInventory();
-    inventory = data.filter((item) => (item.SKU || item.SERIAL) && item.NAME);
-    inventory.sort((a, b) => (parseInt(b.SOLD) || 0) - (parseInt(a.SOLD) || 0));
-    populateFiltersAndShow();
+    const [invData, ordersData] = await Promise.all([
+      Api.getInventory(),
+      Api.getOrders().catch(() => [])
+    ]);
+
+    inventory = invData.filter((item) => (item.SKU || item.SERIAL) && item.NAME);
+
+    // Compute 15-day trending from orders
+    calculate15DayTrending(ordersData);
+    applyTrendingAndSort();
+
+    populateInitialFilters();
+
+    // Auto-search if redirected from inventory with ?search= param
+    const urlParams = new URLSearchParams(window.location.search);
+    const searchParam = urlParams.get("search");
+    if (searchParam && !el.searchInput.value) {
+      el.searchInput.value = searchParam;
+    }
+
+    renderProducts();
+    el.loading.classList.add("hidden");
+    el.grid.classList.remove("hidden");
   } catch (err) {
-    if (!cached) showToast("Failed to load inventory", "error");
+    if (!cached) showToast("Failed to load POS data", "error");
     console.error(err);
   }
 }
 
-function populateFilters() {
-  const nameList = document.getElementById("filterName");
-  const colorList = document.getElementById("filterColor");
-  const sizeList = document.getElementById("filterSize");
-  
-  if (!nameList || !colorList || !sizeList) return;
+/**
+ * Calculate popularity / sold volume within the last 15 days
+ */
+function calculate15DayTrending(orders) {
+  sales15dBySerial = {};
+  sales15dByName = {};
+  if (!Array.isArray(orders)) return;
 
-  const names = extractUniqueValues(inventory, "NAME");
-  const colors = extractUniqueValues(inventory, "COLOR");
-  const sizes = extractUniqueValues(inventory, "SIZE");
+  const now = new Date();
+  const fifteenDaysAgo = new Date(now.getTime() - 15 * 24 * 60 * 60 * 1000);
 
-  nameList.innerHTML = '<option value="all">All Designs</option>' + names.map(n => `<option value="${n}">${n}</option>`).join("");
-  colorList.innerHTML = '<option value="all">All Colors</option>' + colors.map(c => `<option value="${c}">${c}</option>`).join("");
-  sizeList.innerHTML = '<option value="all">All Sizes</option>' + sizes.map(s => `<option value="${s}">${s}</option>`).join("");
+  orders.forEach((order) => {
+    if (order.delivery_status === "Returned" || order.delivery_status === "Cancelled") return;
+    const orderDate = parseOrderDate(order.date);
+    if (!orderDate || orderDate < fifteenDaysAgo) return;
+
+    const rawSerials = String(order.serial || "").split(",").map(s => s.trim());
+    const rawQtys = String(order.quantity || "").split(",").map(q => parseInt(q.trim()) || 1);
+    const rawNames = String(order.category || "").split(",").map(n => n.trim());
+
+    rawSerials.forEach((ser, idx) => {
+      const qty = rawQtys[idx] || rawQtys[0] || 1;
+      if (ser) {
+        sales15dBySerial[ser] = (sales15dBySerial[ser] || 0) + qty;
+      }
+      const name = rawNames[idx] || rawNames[0];
+      if (name) {
+        sales15dByName[name] = (sales15dByName[name] || 0) + qty;
+      }
+    });
+  });
+}
+
+/**
+ * Apply 15-day trending score and sort products
+ * 1. Highest 15-day sold first
+ * 2. All-time SOLD descending
+ * 3. Available stock
+ */
+function applyTrendingAndSort() {
+  inventory.forEach((item) => {
+    const ser = String(item.SERIAL || item.SKU);
+    const setSize = parseInt(item["CHURI IN A SET"]) || 1;
+    const pieces15d = sales15dBySerial[ser] || 0;
+    item.soldPieces15d = pieces15d;
+    item.soldSets15d = Math.round(pieces15d / setSize);
+  });
+
+  inventory.sort((a, b) => {
+    const tA = a.soldPieces15d || 0;
+    const tB = b.soldPieces15d || 0;
+    if (tB !== tA) return tB - tA;
+
+    const soldA = parseInt(a.SOLD) || 0;
+    const soldB = parseInt(b.SOLD) || 0;
+    if (soldB !== soldA) return soldB - soldA;
+
+    return getStock(b) - getStock(a);
+  });
+}
+
+function populateInitialFilters() {
+  populateDropdown(el.filterType, extractUniqueValues(inventory, "Type"), "All Types");
+  populateDropdown(el.filterColor, extractUniqueValues(inventory, "COLOR"), "All Colors");
+  populateDropdown(el.filterSize, extractUniqueValues(inventory, "SIZE"), "All Sizes");
 }
 
 function extractUniqueValues(data, key) {
@@ -108,27 +335,16 @@ function extractUniqueValues(data, key) {
   return [...new Set(values)].sort();
 }
 
-function populateFiltersAndShow() {
-  populateFilters();
-
-  // Auto-search if redirected from inventory with ?search= param
-  const urlParams = new URLSearchParams(window.location.search);
-  const searchParam = urlParams.get("search");
-  if (searchParam && !el.searchInput.value) {
-    el.searchInput.value = searchParam;
-  }
-
-  renderProducts();
-  el.loading.classList.add("hidden");
-  el.grid.classList.remove("hidden");
-}
-
 function resetFilters() {
   el.searchInput.value = "";
-  if(document.getElementById("filterName")) document.getElementById("filterName").value = "all";
-  if(document.getElementById("filterColor")) document.getElementById("filterColor").value = "all";
-  if(document.getElementById("filterSize")) document.getElementById("filterSize").value = "all";
-  if(document.getElementById("filterStock")) document.getElementById("filterStock").value = "all";
+  if (el.filterType) el.filterType.value = "all";
+  if (el.filterName) { el.filterName.value = "all"; el.filterName.classList.add("hidden"); }
+  if (el.filterDesign) { el.filterDesign.value = "all"; el.filterDesign.classList.add("hidden"); }
+  if (el.filterColor) el.filterColor.value = "all";
+  if (el.filterColorShade) { el.filterColorShade.value = "all"; el.filterColorShade.classList.add("hidden"); }
+  if (el.filterSize) el.filterSize.value = "all";
+  if (el.filterStock) el.filterStock.value = "in_stock"; // Default back to In Stock on front page!
+  syncAvailableColors();
   currentPage = 1;
   renderProducts();
 }
@@ -145,67 +361,98 @@ function nextPage() {
   renderProducts();
 }
 
+/**
+ * ─── Render Product Grid (Excludes Out of Stock by Default) ───────────────
+ */
 function renderProducts() {
-  const search = el.searchInput.value.toLowerCase();
-  const nameFilter = document.getElementById("filterName") ? document.getElementById("filterName").value : "all";
-  const colorFilter = document.getElementById("filterColor") ? document.getElementById("filterColor").value : "all";
-  const sizeFilter = document.getElementById("filterSize") ? document.getElementById("filterSize").value : "all";
-  const stockFilter = document.getElementById("filterStock") ? document.getElementById("filterStock").value : "all";
+  const search = el.searchInput.value.toLowerCase().trim();
+  const typeFilter = el.filterType ? el.filterType.value : "all";
+  const nameFilter = el.filterName ? el.filterName.value : "all";
+  const designFilter = el.filterDesign ? el.filterDesign.value : "all";
+  const colorFilter = el.filterColor ? el.filterColor.value : "all";
+  const shadeFilter = el.filterColorShade ? el.filterColorShade.value : "all";
+  const sizeFilter = el.filterSize ? el.filterSize.value : "all";
+  const stockFilter = el.filterStock ? el.filterStock.value : "in_stock";
 
   const filtered = inventory.filter((item) => {
-    const idField = item.SERIAL || item.SKU || "";
-    const ms = !search || String(idField).toLowerCase().includes(search) || String(item.NAME).toLowerCase().includes(search) || String(item.COLOR).toLowerCase().includes(search);
-    
-    let stockMatch = true;
+    const idField = String(item.SERIAL || item.SKU || "");
+    const skuName = String(item["SKU NAME"] || "");
+    const itemType = String(item.Type || "");
+    const itemName = String(item.NAME || "");
+    const itemDesign = String(item.Design || "");
+    const itemColor = String(item.COLOR || "");
+    const itemShade = String(item["Color Shade"] || "");
+    const itemSize = String(item.SIZE || "");
+
+    const ms = !search ||
+      idField.toLowerCase().includes(search) ||
+      skuName.toLowerCase().includes(search) ||
+      itemType.toLowerCase().includes(search) ||
+      itemName.toLowerCase().includes(search) ||
+      itemDesign.toLowerCase().includes(search) ||
+      itemColor.toLowerCase().includes(search) ||
+      itemShade.toLowerCase().includes(search);
+
     const itemStock = getStock(item);
+    let stockMatch = true;
     if (stockFilter === "in_stock") stockMatch = itemStock > 0;
     else if (stockFilter === "low_stock") stockMatch = itemStock > 0 && itemStock < 5;
     else if (stockFilter === "out_of_stock") stockMatch = itemStock <= 0;
+    // "all" allows everything, but default front page is "in_stock"
 
-    const nameMatch = nameFilter === "all" || item.NAME === nameFilter;
-    const colorMatch = colorFilter === "all" || item.COLOR === colorFilter;
-    const sizeMatch = sizeFilter === "all" || String(item.SIZE) === sizeFilter;
+    const typeMatch = typeFilter === "all" || itemType.trim() === typeFilter;
+    const nameMatch = nameFilter === "all" || itemName.trim() === nameFilter;
+    const designMatch = designFilter === "all" || itemDesign.trim() === designFilter;
+    const colorMatch = colorFilter === "all" || itemColor.trim() === colorFilter;
+    const shadeMatch = shadeFilter === "all" || itemShade.trim() === shadeFilter;
+    const sizeMatch = sizeFilter === "all" || itemSize.trim() === sizeFilter;
 
-    return ms && stockMatch && nameMatch && colorMatch && sizeMatch;
+    return ms && stockMatch && typeMatch && nameMatch && designMatch && colorMatch && shadeMatch && sizeMatch;
   });
 
   el.grid.innerHTML = "";
 
   if (filtered.length === 0) {
-    el.grid.innerHTML = '<div class="no-data">No products found</div>';
+    el.grid.innerHTML = '<div class="no-data" style="grid-column:1/-1;">No products found</div>';
     el.paginationControls.classList.add("hidden");
     return;
   }
 
   const totalPages = Math.ceil(filtered.length / itemsPerPage);
   if (currentPage > totalPages) currentPage = totalPages;
-  
+
   const startIdx = (currentPage - 1) * itemsPerPage;
   const paginated = filtered.slice(startIdx, startIdx + itemsPerPage);
 
   paginated.forEach((item) => {
     const stock = getStock(item);
     const price = parseFloat(item["SELLING PRICE"]) || 0;
+    const setSize = parseInt(item["CHURI IN A SET"]) || 12;
     const isOut = stock <= 0;
     const isLow = stock > 0 && stock < 5;
     const imgUrl = getFirstImageUrl(item["IMAGE LINK"], item.IMAGES);
+    const isTrending = (item.soldPieces15d || 0) > 0;
+    const trendingSets = item.soldSets15d || Math.round((item.soldPieces15d || 0) / setSize);
 
     const card = document.createElement("div");
     card.className = `product-card ${isOut ? "out-of-stock" : ""}`;
     card.innerHTML = `
       <div class="product-img-wrapper">
         <div class="product-img">${imgUrl ? `<img src="${imgUrl}" alt="${item.NAME}" referrerpolicy="no-referrer" onerror="this.parentElement.innerHTML='<i class=\\'ri-image-line\\' style=\\'font-size:28px\\'></i>'">` : '<i class="ri-image-line" style="font-size:28px"></i>'}</div>
+        ${isTrending ? `<div class="badge-trending"><i class="ri-fire-fill"></i> ${trendingSets > 0 ? trendingSets + ' Sets (15d)' : 'Trending'}</div>` : ''}
         ${!isOut ? `<button class="quick-add-btn" onclick="addToCartByData('${item.SERIAL || item.SKU}'); event.stopPropagation()"><i class="ri-add-line"></i></button>` : ''}
       </div>
       <div class="product-info">
-        <h3>${item.NAME}</h3>
+        <h3>${item.NAME}${item.Design ? ` <span style="font-weight:400;color:var(--text-muted);font-size:12px;">(${item.Design})</span>` : ''}</h3>
         <div class="product-meta">
-          <span>${item.COLOR}</span>
+          ${item.Type ? `<span class="badge-type">${item.Type}</span>` : ''}
+          <span class="badge-set-pcs"><i class="ri-stack-line"></i> ${setSize} pcs/set</span>
+          <span>${item.COLOR}${item['Color Shade'] ? ` · ${item['Color Shade']}` : ''}</span>
           <span class="size-badge">Size ${item.SIZE}</span>
         </div>
         <div class="product-footer">
-          <span class="product-price">${formatCurrency(price)}</span>
-          <span class="stock-badge ${isOut ? "stock-out" : isLow ? "stock-low" : "stock-ok"}">${isOut ? "Out" : formatStockDisplay(stock, parseInt(item["CHURI IN A SET"]) || 12)}</span>
+          <span class="product-price">${formatCurrency(price)} <span class="price-unit">(${setSize} pcs)</span></span>
+          <span class="stock-badge ${isOut ? "stock-out" : isLow ? "stock-low" : "stock-ok"}">${isOut ? "Out" : formatStockDisplay(stock, setSize)}</span>
         </div>
       </div>`;
 
@@ -220,7 +467,9 @@ function renderProducts() {
   el.nextPageBtn.disabled = currentPage === totalPages;
 }
 
-// ─── Cart ───────────────────────────────────────────────
+/**
+ * ─── Cart Management ──────────────────────────────────────────────────────
+ */
 function addToCartByData(idField) {
   const product = inventory.find((i) => String(i.SERIAL || i.SKU) === idField);
   if (product) addToCart(product);
@@ -289,7 +538,6 @@ function renderCart() {
     const imgUrl = getFirstImageUrl(item["IMAGE LINK"], item.IMAGES);
     const idField = item.SERIAL || item.SKU;
 
-    // Display quantity as sets
     const qtyDisplay = extraPieces > 0 ? `${numberOfSets} Set + ${extraPieces} Pcs` : `${numberOfSets} Set`;
 
     const div = document.createElement("div");
@@ -297,8 +545,8 @@ function renderCart() {
     div.innerHTML = `
       ${imgUrl ? `<img src="${imgUrl}" class="cart-item-img" referrerpolicy="no-referrer">` : '<div class="cart-item-img"></div>'}
       <div class="cart-item-details">
-        <h4>${item.NAME}</h4>
-        <div class="cart-item-meta">${item.COLOR} · Size ${item.SIZE}</div>
+        <h4>${item.NAME}${item.Design ? ` (${item.Design})` : ''}</h4>
+        <div class="cart-item-meta">${item.COLOR}${item['Color Shade'] ? ` · ${item['Color Shade']}` : ''} · Size ${item.SIZE}</div>
         <div class="cart-item-meta" style="color:var(--accent);font-weight:600;margin-top:2px;">৳${setPrice}/set · ${setSize} pcs/set</div>
       </div>
       <div class="cart-item-controls">
@@ -338,7 +586,6 @@ function renderCart() {
   recalcTotals();
 }
 
-// Mobile cart overlay toggle
 function toggleMobileCart() {
   const cartEl = document.querySelector(".pos-cart");
   cartEl.classList.toggle("cart-open");
@@ -370,7 +617,6 @@ function recalcTotals() {
   calcDue();
 }
 
-// ─── Partial Payment ────────────────────────────────────
 function togglePartialRow() {
   el.partialRow.classList.toggle("hidden", el.paymentStatus.value !== "Partial");
   calcDue();
@@ -383,7 +629,9 @@ function calcDue() {
   el.dueAmount.value = formatCurrency(Math.max(0, total - paid));
 }
 
-// ─── Checkout ───────────────────────────────────────────
+/**
+ * ─── Checkout ─────────────────────────────────────────────────────────────
+ */
 let isProcessingCheckout = false;
 async function handleCheckout() {
   if (isProcessingCheckout) return;
@@ -402,7 +650,7 @@ async function handleCheckout() {
   });
 
   if (lowStockItems.length > 0) {
-    const confirmMsg = "Warning: You have items in your cart that are Low Stock or Out of Stock in inventory. Do you still want to proceed with this order?";
+    const confirmMsg = "Warning: Some items in your cart are Low Stock or Out of Stock in inventory. Do you still want to proceed?";
     if (!confirm(confirmMsg)) return;
   }
 
@@ -440,7 +688,6 @@ async function handleCheckout() {
   const unitPriceList = cart.map(i => {
     const setPrice = parseFloat(i["SELLING PRICE"]) || 0;
     const setSize = parseInt(i["CHURI IN A SET"]) || 1;
-    // Store per-piece price for accurate return refund calculations
     return setPrice / setSize;
   }).join(", ");
   const totalQty = cart.reduce((s, i) => s + i.cartQty, 0);
@@ -464,8 +711,8 @@ async function handleCheckout() {
 
     if (!result.success) throw new Error(result.error || "Save failed");
 
-    showToast("Order completed!", "success");
-    // Increment SOLD locally (never touch SET QUANTITY)
+    showToast("Order completed successfully!", "success");
+    // Increment SOLD locally
     cart.forEach((ci) => {
       const idField = ci.SERIAL || ci.SKU;
       const inv = inventory.find((i) => (i.SERIAL || i.SKU) === idField);
@@ -476,11 +723,11 @@ async function handleCheckout() {
     el.custAddress.value = "";
     el.orderNote.value = "";
     el.paidAmount.value = "";
-    el.deliveryFee.value = "0";
+    el.deliveryFee.value = "80";
     el.discountType.value = "none";
     el.discountValue.value = "";
     el.discountValue.style.display = "none";
-    populateFilters();
+    populateInitialFilters();
     clearCart();
     renderProducts();
   } catch (err) {

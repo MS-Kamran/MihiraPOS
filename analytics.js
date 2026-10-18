@@ -5,6 +5,7 @@
  */
 let allOrders = [];
 let allInventory = [];
+let activeInventory = [];
 let charts = {};
 
 const chartColors = {
@@ -32,6 +33,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     ]);
     allOrders = ordersData;
     allInventory = invData;
+    activeInventory = allInventory;
+    initAnalyticsProductFilters();
+
     document.getElementById("loading").classList.add("hidden");
     document.getElementById("analyticsContent").classList.remove("hidden");
     
@@ -96,32 +100,253 @@ function formatDateInput(d) {
   return `${y}-${m}-${day}`;
 }
 
+function initAnalyticsProductFilters() {
+  const typeEl = document.getElementById("analyticsFilterType");
+  const nameEl = document.getElementById("analyticsFilterName");
+  const designEl = document.getElementById("analyticsFilterDesign");
+  const colorEl = document.getElementById("analyticsFilterColor");
+  const shadeEl = document.getElementById("analyticsFilterColorShade");
+  const sizeEl = document.getElementById("analyticsFilterSize");
+
+  if (!typeEl) return;
+
+  populateDropdown(typeEl, extractUniqueValues(allInventory, "Type"), "All Types");
+  populateDropdown(colorEl, extractUniqueValues(allInventory, "COLOR"), "All Colors");
+  populateDropdown(sizeEl, extractUniqueValues(allInventory, "SIZE"), "All Sizes");
+
+  function getAnalyticsScopedItems() {
+    const selectedType = typeEl ? typeEl.value : "all";
+    const selectedName = nameEl ? nameEl.value : "all";
+    const selectedDesign = designEl ? designEl.value : "all";
+
+    let scoped = allInventory;
+    if (selectedType !== "all") scoped = scoped.filter(i => String(i.Type || "").trim() === selectedType);
+    if (selectedName !== "all") scoped = scoped.filter(i => String(i.NAME || "").trim() === selectedName);
+    if (selectedDesign !== "all") scoped = scoped.filter(i => String(i.Design || "").trim() === selectedDesign);
+    return scoped;
+  }
+
+  function syncAnalyticsAvailableColors() {
+    if (!colorEl) return;
+    const scoped = getAnalyticsScopedItems();
+    const availableColors = extractUniqueValues(scoped, "COLOR");
+    const prevColor = colorEl.value;
+
+    populateDropdown(colorEl, availableColors, "All Colors");
+
+    if (prevColor !== "all" && availableColors.includes(prevColor)) {
+      colorEl.value = prevColor;
+      syncAnalyticsAvailableShades(scoped, prevColor);
+    } else {
+      colorEl.value = "all";
+      if (shadeEl) {
+        shadeEl.value = "all";
+        shadeEl.classList.add("hidden");
+      }
+    }
+  }
+
+  function syncAnalyticsAvailableShades(scopedItems, selectedColor) {
+    if (!shadeEl) return;
+    if (selectedColor === "all") {
+      shadeEl.value = "all";
+      shadeEl.classList.add("hidden");
+      return;
+    }
+
+    const colorItems = scopedItems.filter(i => String(i.COLOR || "").trim() === selectedColor);
+    const availableShades = extractUniqueValues(colorItems, "Color Shade");
+
+    if (availableShades.length > 0) {
+      const prevShade = shadeEl.value;
+      populateDropdown(shadeEl, availableShades, "All Shades");
+      if (prevShade !== "all" && availableShades.includes(prevShade)) {
+        shadeEl.value = prevShade;
+      } else {
+        shadeEl.value = "all";
+      }
+      shadeEl.classList.remove("hidden");
+      shadeEl.classList.add("filter-appear");
+    } else {
+      shadeEl.value = "all";
+      shadeEl.classList.add("hidden");
+    }
+  }
+
+  window.syncAnalyticsAvailableColors = syncAnalyticsAvailableColors;
+
+  typeEl.addEventListener("change", () => {
+    const selectedType = typeEl.value;
+    if (selectedType === "all") {
+      nameEl.classList.add("hidden");
+      nameEl.value = "all";
+      designEl.classList.add("hidden");
+      designEl.value = "all";
+    } else {
+      const matching = allInventory.filter(i => String(i.Type || "").trim() === selectedType);
+      const names = extractUniqueValues(matching, "NAME");
+      populateDropdown(nameEl, names, "All Names");
+      nameEl.value = "all";
+      nameEl.classList.remove("hidden");
+      nameEl.classList.add("filter-appear");
+
+      designEl.classList.add("hidden");
+      designEl.value = "all";
+    }
+    syncAnalyticsAvailableColors();
+    refresh();
+  });
+
+  nameEl.addEventListener("change", () => {
+    const selectedType = typeEl.value;
+    const selectedName = nameEl.value;
+    if (selectedName === "all") {
+      designEl.classList.add("hidden");
+      designEl.value = "all";
+    } else {
+      const matching = allInventory.filter(i =>
+        (selectedType === "all" || String(i.Type || "").trim() === selectedType) &&
+        String(i.NAME || "").trim() === selectedName
+      );
+      const designs = extractUniqueValues(matching, "Design");
+      if (designs.length > 0) {
+        populateDropdown(designEl, designs, "All Designs");
+        designEl.value = "all";
+        designEl.classList.remove("hidden");
+        designEl.classList.add("filter-appear");
+      } else {
+        designEl.classList.add("hidden");
+        designEl.value = "all";
+      }
+    }
+    syncAnalyticsAvailableColors();
+    refresh();
+  });
+
+  if (designEl) {
+    designEl.addEventListener("change", () => {
+      syncAnalyticsAvailableColors();
+      refresh();
+    });
+  }
+
+  colorEl.addEventListener("change", () => {
+    const scoped = getAnalyticsScopedItems();
+    syncAnalyticsAvailableShades(scoped, colorEl.value);
+    refresh();
+  });
+
+  if (shadeEl) shadeEl.addEventListener("change", refresh);
+  if (sizeEl) sizeEl.addEventListener("change", refresh);
+}
+
+window.resetAnalyticsProductFilters = function() {
+  const typeEl = document.getElementById("analyticsFilterType");
+  const nameEl = document.getElementById("analyticsFilterName");
+  const designEl = document.getElementById("analyticsFilterDesign");
+  const colorEl = document.getElementById("analyticsFilterColor");
+  const shadeEl = document.getElementById("analyticsFilterColorShade");
+  const sizeEl = document.getElementById("analyticsFilterSize");
+
+  if (typeEl) typeEl.value = "all";
+  if (nameEl) { nameEl.value = "all"; nameEl.classList.add("hidden"); }
+  if (designEl) { designEl.value = "all"; designEl.classList.add("hidden"); }
+  if (colorEl) colorEl.value = "all";
+  if (shadeEl) { shadeEl.value = "all"; shadeEl.classList.add("hidden"); }
+  if (sizeEl) sizeEl.value = "all";
+
+  if (window.syncAnalyticsAvailableColors) {
+    window.syncAnalyticsAvailableColors();
+  }
+
+  refresh();
+};
+
+function updateActiveInventory() {
+  const typeFilter = document.getElementById("analyticsFilterType")?.value || "all";
+  const nameFilter = document.getElementById("analyticsFilterName")?.value || "all";
+  const designFilter = document.getElementById("analyticsFilterDesign")?.value || "all";
+  const colorFilter = document.getElementById("analyticsFilterColor")?.value || "all";
+  const shadeFilter = document.getElementById("analyticsFilterColorShade")?.value || "all";
+  const sizeFilter = document.getElementById("analyticsFilterSize")?.value || "all";
+
+  const isFiltered = typeFilter !== "all" || nameFilter !== "all" || designFilter !== "all" ||
+                     colorFilter !== "all" || shadeFilter !== "all" || sizeFilter !== "all";
+
+  const noticeEl = document.getElementById("analyticsProductFilterNotice");
+  if (!isFiltered) {
+    activeInventory = allInventory;
+    if (noticeEl) noticeEl.textContent = "";
+    return false;
+  }
+
+  activeInventory = allInventory.filter(item => {
+    const itemType = String(item.Type || "").trim();
+    const itemName = String(item.NAME || "").trim();
+    const itemDesign = String(item.Design || "").trim();
+    const itemColor = String(item.COLOR || "").trim();
+    const itemShade = String(item["Color Shade"] || "").trim();
+    const itemSize = String(item.SIZE || "").trim();
+
+    const typeMatch = typeFilter === "all" || itemType === typeFilter;
+    const nameMatch = nameFilter === "all" || itemName === nameFilter;
+    const designMatch = designFilter === "all" || itemDesign === designFilter;
+    const colorMatch = colorFilter === "all" || itemColor === colorFilter;
+    const shadeMatch = shadeFilter === "all" || itemShade === shadeFilter;
+    const sizeMatch = sizeFilter === "all" || itemSize === sizeFilter;
+
+    return typeMatch && nameMatch && designMatch && colorMatch && shadeMatch && sizeMatch;
+  });
+
+  if (noticeEl) {
+    noticeEl.textContent = `Filtered to ${activeInventory.length} product(s)`;
+  }
+  return true;
+}
+
 function getFilteredOrders() {
   const fromVal = document.getElementById("dateFrom").value;
   const toVal = document.getElementById("dateTo").value;
 
-  if (!fromVal && !toVal) return allOrders;
+  let orders = allOrders;
 
-  return allOrders.filter((o) => {
-    const orderDate = parseOrderDate(o.date);
-    if (!orderDate) return true;
-    
-    // Convert orderDate to local midnight for accurate comparison
-    const orderLocalMidnight = new Date(orderDate.getFullYear(), orderDate.getMonth(), orderDate.getDate());
-    
-    if (fromVal) {
-      const fromParts = fromVal.split("-");
-      const fromDate = new Date(fromParts[0], fromParts[1] - 1, fromParts[2]);
-      if (orderLocalMidnight < fromDate) return false;
-    }
-    
-    if (toVal) { 
-      const toParts = toVal.split("-");
-      const toDate = new Date(toParts[0], toParts[1] - 1, toParts[2]);
-      if (orderLocalMidnight > toDate) return false; 
-    }
-    return true;
-  });
+  if (fromVal || toVal) {
+    orders = orders.filter((o) => {
+      const orderDate = parseOrderDate(o.date);
+      if (!orderDate) return true;
+      
+      const orderLocalMidnight = new Date(orderDate.getFullYear(), orderDate.getMonth(), orderDate.getDate());
+      
+      if (fromVal) {
+        const fromParts = fromVal.split("-");
+        const fromDate = new Date(fromParts[0], fromParts[1] - 1, fromParts[2]);
+        if (orderLocalMidnight < fromDate) return false;
+      }
+      
+      if (toVal) { 
+        const toParts = toVal.split("-");
+        const toDate = new Date(toParts[0], toParts[1] - 1, toParts[2]);
+        if (orderLocalMidnight > toDate) return false; 
+      }
+      return true;
+    });
+  }
+
+  // Filter orders by active inventory if product filters applied
+  if (activeInventory.length !== allInventory.length) {
+    const matchingSerials = new Set(activeInventory.map(i => String(i.SERIAL || i.SKU)));
+    const matchingNames = new Set(activeInventory.map(i => String(i.NAME || "").trim().toLowerCase()));
+
+    orders = orders.filter((o) => {
+      const serials = String(o.serial || "").split(",").map(s => s.trim());
+      const categories = String(o.category || "").split(",").map(c => c.trim().toLowerCase());
+      const hasSerialMatch = serials.some(s => s && matchingSerials.has(s));
+      const hasNameMatch = categories.some(c => c && matchingNames.has(c));
+      return hasSerialMatch || hasNameMatch;
+    });
+  }
+
+  return orders;
 }
 
 function parseOrderDate(dateStr) {
@@ -141,6 +366,7 @@ function sumQuantities(qtyStr) {
 }
 
 function refresh() {
+  updateActiveInventory();
   const data = getFilteredOrders();
   const validSalesData = data.filter(r => r.delivery_status !== "Returned" && r.delivery_status !== "Cancelled");
 
@@ -280,7 +506,7 @@ function renderLowStockAlerts() {
   if (!container) return;
   container.innerHTML = "";
 
-  const lowStockItems = allInventory.filter(item => {
+  const lowStockItems = activeInventory.filter(item => {
     const remaining = getStock(item);
     return remaining > 0 && remaining <= 5;
   }).sort((a, b) => getStock(a) - getStock(b));
@@ -764,7 +990,7 @@ function renderTopProductsRevenue(data) {
 // ─── Highest Stock Available ────────────────────────────
 function renderHighestStock() {
   const products = {};
-  allInventory.forEach(item => {
+  activeInventory.forEach(item => {
     const name = item.NAME || "Unknown";
     const remaining = getStock(item);
     const setSize = parseInt(item["CHURI IN A SET"]) || 1;
@@ -780,7 +1006,7 @@ function renderHighestStock() {
 // ─── Highest Stock Available (Colors) ───────────────────
 function renderHighestStockColors() {
   const colors = {};
-  allInventory.forEach(item => {
+  activeInventory.forEach(item => {
     const color = item.COLOR || "Unknown";
     const remaining = getStock(item);
     const setSize = parseInt(item["CHURI IN A SET"]) || 1;
@@ -793,44 +1019,202 @@ function renderHighestStockColors() {
   createHorizontalBar("highestStockColorsChart", sorted.map(s => s[0]), sorted.map(s => Math.round(s[1] * 10) / 10));
 }
 
-// ─── Product Stock Explorer ─────────────────────────────
-let productStockExplorerInitialized = false;
+// ─── Product Stock Explorer (Enhanced with Cascading Filters & Intelligence) ───
+let pseListenersInitialized = false;
+let pseSelectedProduct = "";
+let pseCurrentView = "chart";
 
-function renderProductStockExplorer() {
-  if (productStockExplorerInitialized) return;
-  productStockExplorerInitialized = true;
+window.switchPseView = function(view) {
+  pseCurrentView = view;
+  const tabChart = document.getElementById("pseViewTabChart");
+  const tabTable = document.getElementById("pseViewTabTable");
+  const chartContainer = document.getElementById("pseChartContainer");
+  const tableContainer = document.getElementById("pseTableContainer");
 
-  const searchInput = document.getElementById("productStockSearch");
-  const dropdown = document.getElementById("productSearchDropdown");
-  if (!searchInput || !dropdown) return;
+  if (view === "chart") {
+    if (tabChart) tabChart.classList.add("active");
+    if (tabTable) tabTable.classList.remove("active");
+    if (chartContainer) chartContainer.style.display = "block";
+    if (tableContainer) tableContainer.style.display = "none";
+  } else {
+    if (tabChart) tabChart.classList.remove("active");
+    if (tabTable) tabTable.classList.add("active");
+    if (chartContainer) chartContainer.style.display = "none";
+    if (tableContainer) tableContainer.style.display = "block";
+  }
+};
 
-  // Build unique product names from inventory
-  const productNames = [...new Set(allInventory.map(i => (i.NAME || "").trim()).filter(Boolean))].sort();
+window.resetPseFilters = function() {
+  const typeEl = document.getElementById("pseFilterType");
+  const searchEl = document.getElementById("pseProductSearch");
+  const designEl = document.getElementById("pseFilterDesign");
+  const colorEl = document.getElementById("pseFilterColor");
+  const shadeEl = document.getElementById("pseFilterColorShade");
+  const sizeEl = document.getElementById("pseFilterSize");
+  const stockEl = document.getElementById("pseFilterStockStatus");
+  const unitEl = document.getElementById("pseUnitToggle");
 
-  function renderDropdownItems(filter) {
-    const query = (filter || "").toLowerCase();
-    const matches = query
-      ? productNames.filter(n => n.toLowerCase().includes(query))
-      : productNames;
+  if (typeEl) typeEl.value = "all";
+  if (searchEl) searchEl.value = "";
+  pseSelectedProduct = "";
+  if (designEl) { designEl.value = "all"; designEl.classList.add("hidden"); }
+  if (colorEl) colorEl.value = "all";
+  if (shadeEl) { shadeEl.value = "all"; shadeEl.classList.add("hidden"); }
+  if (sizeEl) sizeEl.value = "all";
+  if (stockEl) stockEl.value = "all";
+  if (unitEl) unitEl.value = "sets";
+
+  syncPseAvailableColors();
+  updatePseDisplay();
+};
+
+function getPseScopedItems() {
+  const selectedType = document.getElementById("pseFilterType")?.value || "all";
+  const searchVal = (document.getElementById("pseProductSearch")?.value || "").trim().toLowerCase();
+  const selectedProduct = pseSelectedProduct || (searchVal ? searchVal : "");
+  const selectedDesign = document.getElementById("pseFilterDesign")?.value || "all";
+
+  let scoped = allInventory;
+  if (selectedType !== "all") {
+    scoped = scoped.filter(i => String(i.Type || "").trim() === selectedType);
+  }
+  if (selectedProduct) {
+    scoped = scoped.filter(i => {
+      const name = String(i.NAME || "").trim().toLowerCase();
+      const sku = String(i.SKU || "").trim().toLowerCase();
+      const serial = String(i.SERIAL || "").trim().toLowerCase();
+      return name === selectedProduct.toLowerCase() || name.includes(selectedProduct.toLowerCase()) || sku.includes(selectedProduct.toLowerCase()) || serial.includes(selectedProduct.toLowerCase());
+    });
+  }
+  if (selectedDesign !== "all") {
+    scoped = scoped.filter(i => String(i.Design || "").trim() === selectedDesign);
+  }
+  return scoped;
+}
+
+function syncPseAvailableColors() {
+  const colorEl = document.getElementById("pseFilterColor");
+  const shadeEl = document.getElementById("pseFilterColorShade");
+  if (!colorEl) return;
+
+  const scoped = getPseScopedItems();
+  const availableColors = extractUniqueValues(scoped, "COLOR");
+  const prevColor = colorEl.value;
+
+  populateDropdown(colorEl, availableColors, "All Colors");
+
+  if (prevColor !== "all" && availableColors.includes(prevColor)) {
+    colorEl.value = prevColor;
+    syncPseAvailableShades(scoped, prevColor);
+  } else {
+    colorEl.value = "all";
+    if (shadeEl) {
+      shadeEl.value = "all";
+      shadeEl.classList.add("hidden");
+    }
+  }
+}
+
+function syncPseAvailableShades(scopedItems, selectedColor) {
+  const shadeEl = document.getElementById("pseFilterColorShade");
+  if (!shadeEl) return;
+  if (selectedColor === "all") {
+    shadeEl.value = "all";
+    shadeEl.classList.add("hidden");
+    return;
+  }
+
+  const colorItems = scopedItems.filter(i => String(i.COLOR || "").trim() === selectedColor);
+  const availableShades = extractUniqueValues(colorItems, "Color Shade");
+
+  if (availableShades.length > 0) {
+    const prevShade = shadeEl.value;
+    populateDropdown(shadeEl, availableShades, "All Shades");
+    if (prevShade !== "all" && availableShades.includes(prevShade)) {
+      shadeEl.value = prevShade;
+    } else {
+      shadeEl.value = "all";
+    }
+    shadeEl.classList.remove("hidden");
+    shadeEl.classList.add("filter-appear");
+  } else {
+    shadeEl.value = "all";
+    shadeEl.classList.add("hidden");
+  }
+}
+
+function setupPseListeners() {
+  if (pseListenersInitialized) return;
+  pseListenersInitialized = true;
+
+  const typeEl = document.getElementById("pseFilterType");
+  const searchInput = document.getElementById("pseProductSearch");
+  const dropdown = document.getElementById("pseProductSearchDropdown");
+  const designEl = document.getElementById("pseFilterDesign");
+  const colorEl = document.getElementById("pseFilterColor");
+  const shadeEl = document.getElementById("pseFilterColorShade");
+  const sizeEl = document.getElementById("pseFilterSize");
+  const stockEl = document.getElementById("pseFilterStockStatus");
+  const unitEl = document.getElementById("pseUnitToggle");
+
+  if (typeEl) {
+    typeEl.addEventListener("change", () => {
+      const selectedType = typeEl.value;
+      if (selectedType !== "all" && pseSelectedProduct) {
+        const item = allInventory.find(i => String(i.NAME || "").trim() === pseSelectedProduct);
+        if (item && String(item.Type || "").trim() !== selectedType) {
+          pseSelectedProduct = "";
+          if (searchInput) searchInput.value = "";
+        }
+      }
+      syncPseDesigns();
+      syncPseAvailableColors();
+      updatePseDisplay();
+    });
+  }
+
+  function renderSearchDropdown(query) {
+    if (!dropdown) return;
+    const q = (query || "").trim().toLowerCase();
+    const selectedType = typeEl ? typeEl.value : "all";
+
+    let pool = allInventory;
+    if (selectedType !== "all") {
+      pool = pool.filter(i => String(i.Type || "").trim() === selectedType);
+    }
+
+    const uniqueProductNames = [...new Set(pool.map(i => String(i.NAME || "").trim()).filter(Boolean))].sort();
+    const matches = q
+      ? uniqueProductNames.filter(n => n.toLowerCase().includes(q))
+      : uniqueProductNames;
 
     if (matches.length === 0) {
-      dropdown.innerHTML = '<div style="padding:12px 14px; color:var(--text-muted); font-size:12px;">No products found</div>';
+      dropdown.innerHTML = '<div style="padding:10px 12px; color:var(--text-muted); font-size:12px;">No matching products found</div>';
       dropdown.style.display = "block";
       return;
     }
 
     dropdown.innerHTML = matches.slice(0, 30).map(name => {
-      const variants = allInventory.filter(i => i.NAME === name);
+      const variants = pool.filter(i => String(i.NAME || "").trim() === name);
       const totalStock = variants.reduce((s, i) => s + getStock(i), 0);
+      const setSize = parseInt(variants[0]["CHURI IN A SET"]) || 1;
+      const sets = Math.floor(totalStock / setSize);
       const imgUrl = getFirstImageUrl(variants[0]["IMAGE LINK"], variants[0].IMAGES);
+      const typeBadge = variants[0].Type ? `<span class="badge-type" style="font-size:9px;padding:1px 4px;">${variants[0].Type}</span>` : '';
+
       return `
-        <div class="product-search-item" data-name="${name}" style="display:flex; align-items:center; gap:10px; padding:8px 12px; cursor:pointer; transition:background 0.15s; border-bottom:1px solid var(--border);">
+        <div class="pse-search-item" data-name="${name}" style="display:flex; align-items:center; gap:10px; padding:8px 12px; cursor:pointer; transition:background 0.15s; border-bottom:1px solid var(--border);">
           ${imgUrl
-            ? `<img src="${imgUrl}" style="width:30px;height:30px;border-radius:5px;object-fit:cover;flex-shrink:0;" referrerpolicy="no-referrer">`
-            : '<i class="ri-image-line" style="font-size:18px;color:var(--text-muted);width:30px;text-align:center;flex-shrink:0;"></i>'}
+            ? `<img src="${imgUrl}" style="width:32px;height:32px;border-radius:6px;object-fit:cover;flex-shrink:0;" referrerpolicy="no-referrer">`
+            : '<i class="ri-image-line" style="font-size:20px;color:var(--text-muted);width:32px;text-align:center;flex-shrink:0;"></i>'}
           <div style="flex:1;min-width:0;">
-            <div style="font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${name}</div>
-            <div style="font-size:10px;color:var(--text-muted);">${variants.length} variant${variants.length > 1 ? 's' : ''} · ${totalStock} pcs</div>
+            <div style="display:flex;align-items:center;gap:6px;">
+              <span style="font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${name}</span>
+              ${typeBadge}
+            </div>
+            <div style="font-size:10px;color:var(--text-muted);margin-top:2px;">
+              ${variants.length} variant${variants.length > 1 ? 's' : ''} · <strong>${sets} sets</strong> (${totalStock} pcs)
+            </div>
           </div>
         </div>
       `;
@@ -838,137 +1222,424 @@ function renderProductStockExplorer() {
 
     dropdown.style.display = "block";
 
-    // Attach click handlers
-    dropdown.querySelectorAll(".product-search-item").forEach(el => {
+    dropdown.querySelectorAll(".pse-search-item").forEach(el => {
       el.addEventListener("click", () => {
-        const name = el.dataset.name;
-        searchInput.value = name;
+        const chosenName = el.dataset.name;
+        pseSelectedProduct = chosenName;
+        if (searchInput) searchInput.value = chosenName;
         dropdown.style.display = "none";
-        renderProductStockChart(name);
+        syncPseDesigns();
+        syncPseAvailableColors();
+        updatePseDisplay();
       });
-      el.addEventListener("mouseenter", () => {
-        el.style.background = "var(--bg)";
-      });
-      el.addEventListener("mouseleave", () => {
-        el.style.background = "transparent";
-      });
+      el.addEventListener("mouseenter", () => { el.style.background = "var(--bg)"; });
+      el.addEventListener("mouseleave", () => { el.style.background = "transparent"; });
     });
   }
 
-  searchInput.addEventListener("focus", () => renderDropdownItems(searchInput.value));
-  searchInput.addEventListener("input", () => renderDropdownItems(searchInput.value));
+  if (searchInput) {
+    searchInput.addEventListener("focus", () => renderSearchDropdown(searchInput.value));
+    searchInput.addEventListener("input", () => {
+      pseSelectedProduct = searchInput.value.trim();
+      renderSearchDropdown(searchInput.value);
+      syncPseDesigns();
+      syncPseAvailableColors();
+      updatePseDisplay();
+    });
+  }
 
-  // Close dropdown when clicking outside
   document.addEventListener("click", (e) => {
-    if (!document.getElementById("productSearchWrapper").contains(e.target)) {
+    const wrap = document.getElementById("pseProductSearchWrapper");
+    if (wrap && !wrap.contains(e.target) && dropdown) {
       dropdown.style.display = "none";
     }
   });
+
+  function syncPseDesigns() {
+    if (!designEl) return;
+    const scoped = getPseScopedItems();
+    const availableDesigns = extractUniqueValues(scoped, "Design");
+    if (availableDesigns.length > 0 && pseSelectedProduct) {
+      populateDropdown(designEl, availableDesigns, "All Designs");
+      designEl.value = "all";
+      designEl.classList.remove("hidden");
+      designEl.classList.add("filter-appear");
+    } else {
+      designEl.value = "all";
+      designEl.classList.add("hidden");
+    }
+  }
+
+  if (designEl) {
+    designEl.addEventListener("change", () => {
+      syncPseAvailableColors();
+      updatePseDisplay();
+    });
+  }
+
+  if (colorEl) {
+    colorEl.addEventListener("change", () => {
+      const scoped = getPseScopedItems();
+      syncPseAvailableShades(scoped, colorEl.value);
+      updatePseDisplay();
+    });
+  }
+
+  if (shadeEl) shadeEl.addEventListener("change", updatePseDisplay);
+  if (sizeEl) sizeEl.addEventListener("change", updatePseDisplay);
+  if (stockEl) stockEl.addEventListener("change", updatePseDisplay);
+  if (unitEl) unitEl.addEventListener("change", updatePseDisplay);
 }
 
-function renderProductStockChart(productName) {
+function renderProductStockExplorer() {
+  setupPseListeners();
+
+  const typeEl = document.getElementById("pseFilterType");
+  const colorEl = document.getElementById("pseFilterColor");
+  const sizeEl = document.getElementById("pseFilterSize");
+  const searchInput = document.getElementById("pseProductSearch");
+
+  // Populate initial dropdown options if not populated
+  if (typeEl && typeEl.options.length <= 1) {
+    populateDropdown(typeEl, extractUniqueValues(allInventory, "Type"), "All Types");
+  }
+  if (colorEl && colorEl.options.length <= 1) {
+    populateDropdown(colorEl, extractUniqueValues(allInventory, "COLOR"), "All Colors");
+  }
+  if (sizeEl && sizeEl.options.length <= 1) {
+    populateDropdown(sizeEl, extractUniqueValues(allInventory, "SIZE"), "All Sizes");
+  }
+
+  // If no product selected yet, pick the top product from allInventory
+  if (!pseSelectedProduct && (!searchInput || !searchInput.value.trim())) {
+    const sortedByStock = [...allInventory].sort((a, b) => getStock(b) - getStock(a));
+    const firstWithStock = sortedByStock.find(i => (i.NAME || "").trim());
+    if (firstWithStock) {
+      pseSelectedProduct = String(firstWithStock.NAME).trim();
+      if (searchInput) searchInput.value = pseSelectedProduct;
+      syncPseAvailableColors();
+    }
+  }
+
+  updatePseDisplay();
+}
+
+function updatePseDisplay() {
   const chartWrapper = document.getElementById("productStockChartWrapper");
   const canvas = document.getElementById("productStockChart");
-  const selectedInfo = document.getElementById("productStockSelectedName");
+  const banner = document.getElementById("pseProductBanner");
+  const alertsContainer = document.getElementById("pseAlertsContainer");
+  const badgeEl = document.getElementById("pseActiveCountBadge");
+  const tableBody = document.getElementById("pseVariantTableBody");
+
   if (!chartWrapper || !canvas) return;
 
-  // Find all inventory items matching this product name
-  const variants = allInventory.filter(i => (i.NAME || "").trim() === productName);
+  const selectedType = document.getElementById("pseFilterType")?.value || "all";
+  const searchVal = (document.getElementById("pseProductSearch")?.value || "").trim().toLowerCase();
+  const selectedDesign = document.getElementById("pseFilterDesign")?.value || "all";
+  const selectedColor = document.getElementById("pseFilterColor")?.value || "all";
+  const selectedShade = document.getElementById("pseFilterColorShade")?.value || "all";
+  const selectedSize = document.getElementById("pseFilterSize")?.value || "all";
+  const stockFilter = document.getElementById("pseFilterStockStatus")?.value || "all";
+  const unitMode = document.getElementById("pseUnitToggle")?.value || "sets";
+
+  // Filter pool
+  const variants = allInventory.filter(item => {
+    const itemType = String(item.Type || "").trim();
+    const itemName = String(item.NAME || "").trim();
+    const itemDesign = String(item.Design || "").trim();
+    const itemColor = String(item.COLOR || "").trim();
+    const itemShade = String(item["Color Shade"] || "").trim();
+    const itemSize = String(item.SIZE || "").trim();
+    const itemSku = String(item.SKU || "").trim();
+    const itemSerial = String(item.SERIAL || "").trim();
+    const stock = getStock(item);
+    const requests = parseInt(item.REQUEST || item.Request) || 0;
+
+    const typeMatch = selectedType === "all" || itemType === selectedType;
+    let prodMatch = true;
+    if (pseSelectedProduct) {
+      prodMatch = itemName.toLowerCase() === pseSelectedProduct.toLowerCase();
+    } else if (searchVal) {
+      prodMatch = itemName.toLowerCase().includes(searchVal) ||
+                  itemSku.toLowerCase().includes(searchVal) ||
+                  itemSerial.toLowerCase().includes(searchVal);
+    }
+
+    const designMatch = selectedDesign === "all" || itemDesign === selectedDesign;
+    const colorMatch = selectedColor === "all" || itemColor === selectedColor;
+    const shadeMatch = selectedShade === "all" || itemShade === selectedShade;
+    const sizeMatch = selectedSize === "all" || itemSize === selectedSize;
+
+    let stockMatch = true;
+    if (stockFilter === "in_stock") stockMatch = stock > 0;
+    else if (stockFilter === "low_stock") stockMatch = stock > 0 && stock < 5;
+    else if (stockFilter === "out_of_stock") stockMatch = stock <= 0;
+    else if (stockFilter === "has_requests") stockMatch = requests > 0;
+
+    return typeMatch && prodMatch && designMatch && colorMatch && shadeMatch && sizeMatch && stockMatch;
+  });
 
   if (variants.length === 0) {
+    if (badgeEl) badgeEl.textContent = "0 Variants";
+    if (banner) banner.style.display = "none";
+    if (alertsContainer) alertsContainer.style.display = "none";
     chartWrapper.style.display = "block";
-    chartWrapper.innerHTML = '<div style="text-align:center;padding:30px;color:var(--text-muted);font-size:13px;">No variants found for this product.</div>';
+    chartWrapper.innerHTML = `
+      <div style="text-align:center; padding:40px 20px; color:var(--text-muted); font-size:13px;">
+        <i class="ri-search-eye-line" style="font-size:36px; display:block; margin-bottom:8px; opacity:0.3;"></i>
+        No variants match the current explorer filters. Try adjusting your search, Type, or Stock Status.
+      </div>`;
     canvas.style.display = "none";
-    if (selectedInfo) selectedInfo.style.display = "none";
+    destroyChart("productStockChart");
+    if (tableBody) tableBody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:24px;color:var(--text-muted);">No matching variants</td></tr>';
     return;
   }
 
-  const setSize = parseInt(variants[0]["CHURI IN A SET"]) || 1;
+  if (badgeEl) badgeEl.textContent = `${variants.length} Variant${variants.length > 1 ? 's' : ''}`;
 
-  // Build a map: color → { size → stock in sets }
-  const colorStockMap = {};  // { color: { size: sets, ... }, ... }
-  const allSizes = new Set();
+  // Metrics computation
+  const setSize = parseInt(variants[0]["CHURI IN A SET"]) || 12;
+  const sellingPrice = parseFloat(variants[0]["SELLING PRICE"]) || 0;
+  const lastPrice = parseFloat(variants[0]["LAST PRICE"]) || 0;
+  const profitMargin = sellingPrice > 0 ? Math.round(((sellingPrice - lastPrice) / sellingPrice) * 100) : 0;
 
-  variants.forEach(v => {
-    const color = v.COLOR || "—";
-    const size = v.SIZE || "—";
-    const stock = getStock(v);
-    const sets = Math.round((stock / setSize) * 10) / 10;
+  const totalStockPcs = variants.reduce((s, i) => s + getStock(i), 0);
+  const totalStockSets = Math.floor(totalStockPcs / setSize);
 
-    allSizes.add(size);
-    if (!colorStockMap[color]) colorStockMap[color] = {};
-    colorStockMap[color][size] = (colorStockMap[color][size] || 0) + sets;
+  const totalSoldPcs = variants.reduce((s, i) => s + (parseInt(i.SOLD) || 0), 0);
+  const totalSoldSets = Math.round(totalSoldPcs / setSize);
+
+  const totalCapacityPcs = variants.reduce((s, i) => s + (parseInt(i["TOTAL UNIT"]) || 0), 0);
+  const sellThroughRate = totalCapacityPcs > 0 ? Math.round((totalSoldPcs / totalCapacityPcs) * 100) : 0;
+
+  const totalStockValue = totalStockSets * sellingPrice;
+  const totalCostCapital = totalStockSets * lastPrice;
+
+  const totalDamagedPcs = variants.reduce((s, i) => s + (parseInt(i.DAMAGED) || 0), 0);
+  const totalRequests = variants.reduce((s, i) => s + (parseInt(i.REQUEST || i.Request) || 0), 0);
+
+  // Compute 15-day sales velocity for these variants
+  let recent15dSoldPcs = 0;
+  const now = new Date();
+  const fifteenDaysAgo = new Date(now.getTime() - 15 * 24 * 60 * 60 * 1000);
+  const variantSerials = new Set(variants.map(v => String(v.SERIAL || v.SKU)));
+  const variantNames = new Set(variants.map(v => String(v.NAME || "").toLowerCase()));
+
+  allOrders.forEach(o => {
+    if (o.delivery_status === "Returned" || o.delivery_status === "Cancelled") return;
+    const oDate = parseOrderDate(o.date);
+    if (!oDate || oDate < fifteenDaysAgo) return;
+
+    const serials = String(o.serial || "").split(",").map(s => s.trim());
+    const qtys = String(o.quantity || "1").split(",").map(q => parseInt(q.trim()) || 1);
+    const names = String(o.category || "").split(",").map(n => n.trim().toLowerCase());
+
+    serials.forEach((ser, idx) => {
+      const q = qtys[idx] || qtys[0] || 1;
+      const n = names[idx] || names[0];
+      if ((ser && variantSerials.has(ser)) || (n && variantNames.has(n))) {
+        recent15dSoldPcs += q;
+      }
+    });
   });
+  const recent15dSets = Math.round(recent15dSoldPcs / setSize);
 
-  // Sort sizes numerically
-  const sortedSizes = [...allSizes].sort((a, b) => (parseFloat(a) || 0) - (parseFloat(b) || 0));
+  // Render Banner
+  if (banner) {
+    const mainImg = getFirstImageUrl(variants[0]["IMAGE LINK"], variants[0].IMAGES);
+    const displayName = pseSelectedProduct || variants[0].NAME;
+    const typeLabel = variants[0].Type ? `<span class="badge-type">${variants[0].Type}</span>` : '';
+    const designLabel = variants[0].Design ? `<span style="font-size:12px;color:var(--text-muted);font-weight:400;">(${variants[0].Design})</span>` : '';
 
-  // Sort colors by total stock descending
-  const colorTotals = Object.entries(colorStockMap).map(([color, sizeMap]) => {
-    const total = Object.values(sizeMap).reduce((s, v) => s + v, 0);
-    return { color, total };
-  }).sort((a, b) => b.total - a.total);
-
-  const sortedColors = colorTotals.map(c => c.color);
-
-  // Show selected product info
-  if (selectedInfo) {
-    const totalStock = variants.reduce((s, v) => s + getStock(v), 0);
-    const totalSold = variants.reduce((s, v) => s + (parseInt(v["SOLD"]) || 0), 0);
-    const totalCapacity = variants.reduce((s, v) => s + (parseInt(v["TOTAL UNIT"]) || 0), 0);
-    const stockSets = Math.floor(totalStock / setSize);
-    const soldSets = Math.floor(totalSold / setSize);
-    const imgUrl = getFirstImageUrl(variants[0]["IMAGE LINK"], variants[0].IMAGES);
-
-    selectedInfo.style.display = "flex";
-    selectedInfo.style.alignItems = "center";
-    selectedInfo.style.gap = "12px";
-    selectedInfo.innerHTML = `
-      ${imgUrl
-        ? `<img src="${imgUrl}" style="width:42px;height:42px;border-radius:8px;object-fit:cover;flex-shrink:0;" referrerpolicy="no-referrer">`
-        : '<i class="ri-image-line" style="font-size:24px;color:var(--text-muted);flex-shrink:0;"></i>'}
-      <div style="flex:1;min-width:0;">
-        <div style="font-weight:700;font-size:14px;">${productName}</div>
-        <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">${variants.length} variant${variants.length > 1 ? 's' : ''} · Set size: ${setSize} · ${sortedColors.length} color${sortedColors.length > 1 ? 's' : ''} · ${sortedSizes.length} size${sortedSizes.length > 1 ? 's' : ''}</div>
+    banner.style.display = "flex";
+    banner.innerHTML = `
+      <div style="display:flex; align-items:center; gap:14px; min-width:240px; flex:1;">
+        ${mainImg
+          ? `<img src="${mainImg}" style="width:52px;height:52px;border-radius:10px;object-fit:cover;flex-shrink:0;box-shadow:0 2px 8px rgba(0,0,0,0.12);" referrerpolicy="no-referrer">`
+          : '<div style="width:52px;height:52px;border-radius:10px;background:var(--bg);display:flex;align-items:center;justify-content:center;color:var(--text-muted);flex-shrink:0;"><i class="ri-image-line" style="font-size:24px;"></i></div>'}
+        <div style="flex:1;min-width:0;">
+          <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+            <span style="font-weight:700; font-size:15px; color:var(--text);">${displayName}</span>
+            ${designLabel}
+            ${typeLabel}
+          </div>
+          <div style="display:flex; align-items:center; gap:8px; margin-top:4px; flex-wrap:wrap;">
+            <span class="badge-set-pcs"><i class="ri-stack-line"></i> ${setSize} pcs/set</span>
+            <span style="font-size:12px; font-weight:700; color:var(--primary);">${formatCurrency(sellingPrice)}</span>
+            <span style="font-size:11px; color:var(--text-muted);">(Cost: ${formatCurrency(lastPrice)} · ${profitMargin}% Margin)</span>
+          </div>
+        </div>
       </div>
-      <div style="display:flex;gap:16px;flex-wrap:wrap;">
-        <div style="text-align:center;">
-          <div style="font-size:18px;font-weight:800;color:var(--primary);">${stockSets}</div>
-          <div style="font-size:10px;color:var(--text-muted);">Sets Left</div>
+
+      <div class="pse-kpi-grid">
+        <div class="pse-kpi-item">
+          <div class="kpi-val" style="color:var(--success);">${totalStockSets} <span style="font-size:11px;font-weight:500;">Sets</span></div>
+          <div class="kpi-lbl">Remaining (${totalStockPcs} pcs)</div>
         </div>
-        <div style="text-align:center;">
-          <div style="font-size:18px;font-weight:800;color:var(--accent);">${soldSets}</div>
-          <div style="font-size:10px;color:var(--text-muted);">Sets Sold</div>
+        <div class="pse-kpi-item">
+          <div class="kpi-val" style="color:var(--info);">${totalSoldSets} <span style="font-size:11px;font-weight:500;">Sets</span></div>
+          <div class="kpi-lbl">Sold (${sellThroughRate}%)</div>
         </div>
-        <div style="text-align:center;">
-          <div style="font-size:18px;font-weight:800;color:var(--text-muted);">${Math.floor(totalCapacity / setSize)}</div>
-          <div style="font-size:10px;color:var(--text-muted);">Total Sets</div>
+        <div class="pse-kpi-item">
+          <div class="kpi-val" style="color:var(--accent);">${recent15dSets} <span style="font-size:11px;font-weight:500;">Sets</span></div>
+          <div class="kpi-lbl">15-Day Velocity</div>
+        </div>
+        <div class="pse-kpi-item">
+          <div class="kpi-val" style="color:var(--primary);">${formatCurrency(totalStockValue)}</div>
+          <div class="kpi-lbl">Retail Value</div>
+        </div>
+        <div class="pse-kpi-item">
+          <div class="kpi-val" style="color:${totalRequests > 0 ? '#ef4444' : 'var(--text-muted)'};">${totalRequests}</div>
+          <div class="kpi-lbl">Backorders</div>
+        </div>
+        <div class="pse-kpi-item">
+          <div class="kpi-val" style="color:var(--warning);">${totalDamagedPcs}</div>
+          <div class="kpi-lbl">Damaged</div>
         </div>
       </div>
     `;
   }
 
-  // Hide placeholder, show canvas
+  // Stock Alerts
+  if (alertsContainer) {
+    const alerts = [];
+    const outVariants = variants.filter(v => getStock(v) <= 0);
+    const lowVariants = variants.filter(v => { const q = getStock(v); return q > 0 && q < 5; });
+    const reqVariants = variants.filter(v => (parseInt(v.REQUEST || v.Request) || 0) > 0);
+
+    if (outVariants.length > 0) {
+      const outSummary = [...new Set(outVariants.map(v => `${v.COLOR || 'Item'} (${v.SIZE || 'All'})`))].slice(0, 5).join(", ");
+      alerts.push(`
+        <div class="pse-alert-strip pse-alert-danger">
+          <i class="ri-error-warning-fill" style="font-size:16px;"></i>
+          <span><strong>Out of Stock:</strong> ${outVariants.length} variant${outVariants.length > 1 ? 's' : ''} sold out (${outSummary}${outVariants.length > 5 ? '...' : ''}). Consider restocking!</span>
+        </div>
+      `);
+    }
+
+    if (reqVariants.length > 0) {
+      alerts.push(`
+        <div class="pse-alert-strip pse-alert-purple">
+          <i class="ri-notification-fill" style="font-size:16px;"></i>
+          <span><strong>Customer Demand:</strong> ${totalRequests} customer backorder request(s) waiting for these items.</span>
+        </div>
+      `);
+    }
+
+    if (lowVariants.length > 0) {
+      const lowSummary = [...new Set(lowVariants.map(v => `${v.COLOR || 'Item'} (${v.SIZE || 'All'})`))].slice(0, 4).join(", ");
+      alerts.push(`
+        <div class="pse-alert-strip pse-alert-warning">
+          <i class="ri-alert-fill" style="font-size:16px;"></i>
+          <span><strong>Low Stock:</strong> ${lowVariants.length} variant(s) have less than 5 pieces left (${lowSummary}).</span>
+        </div>
+      `);
+    }
+
+    if (alerts.length > 0) {
+      alertsContainer.style.display = "flex";
+      alertsContainer.innerHTML = alerts.join("");
+    } else {
+      alertsContainer.style.display = "none";
+    }
+  }
+
+  // Render Table View
+  if (tableBody) {
+    tableBody.innerHTML = variants.map(v => {
+      const stock = getStock(v);
+      const isOut = stock <= 0;
+      const isLow = stock > 0 && stock < 5;
+      const vSetSize = parseInt(v["CHURI IN A SET"]) || setSize;
+      const sold = parseInt(v.SOLD) || 0;
+      const soldSets = Math.round(sold / vSetSize);
+      const damaged = parseInt(v.DAMAGED) || 0;
+      const requests = parseInt(v.REQUEST || v.Request) || 0;
+      const vImg = getFirstImageUrl(v["IMAGE LINK"], v.IMAGES);
+      const stockBadge = isOut
+        ? '<span class="stock-badge stock-out">Out of Stock</span>'
+        : isLow
+          ? `<span class="stock-badge stock-low">${formatStockDisplay(stock, vSetSize)}</span>`
+          : `<span class="stock-badge stock-ok">${formatStockDisplay(stock, vSetSize)}</span>`;
+
+      return `
+        <tr>
+          <td>
+            <div style="display:flex;align-items:center;gap:8px;">
+              ${vImg ? `<img src="${vImg}" style="width:28px;height:28px;border-radius:4px;object-fit:cover;" referrerpolicy="no-referrer">` : '<i class="ri-image-line" style="font-size:16px;color:var(--text-muted);"></i>'}
+              <div>
+                <div style="font-weight:600;">${v.SERIAL || v.SKU || '—'}</div>
+                <div style="font-size:10px;color:var(--text-muted);">${v["SKU NAME"] || v.NAME}</div>
+              </div>
+            </div>
+          </td>
+          <td>
+            <div>
+              <strong>${v.COLOR || '—'}</strong>
+              ${v["Color Shade"] ? `<span class="badge-shade" style="margin-left:4px;">${v["Color Shade"]}</span>` : ''}
+            </div>
+          </td>
+          <td>${v.Design || '—'}</td>
+          <td><span class="size-badge">Size ${v.SIZE || '—'}</span></td>
+          <td>${vSetSize} pcs</td>
+          <td>${stockBadge}</td>
+          <td><strong>${soldSets} sets</strong> <span style="font-size:10px;color:var(--text-muted);">(${sold} pcs)</span></td>
+          <td>${damaged > 0 ? `<span style="color:var(--warning);font-weight:600;">${damaged}</span>` : '0'}</td>
+          <td>${requests > 0 ? `<span style="color:#ef4444;font-weight:700;"><i class="ri-notification-line"></i> ${requests}</span>` : '0'}</td>
+          <td>
+            <a href="pos.html?search=${encodeURIComponent(v.SERIAL || v.SKU || v.NAME)}" target="_blank" class="btn btn-sm btn-outline" style="padding:4px 8px;font-size:11px;" title="Find in POS">
+              <i class="ri-shopping-cart-line"></i> POS
+            </a>
+          </td>
+        </tr>
+      `;
+    }).join("");
+  }
+
+  // Render Bar Chart View
   chartWrapper.style.display = "none";
   canvas.style.display = "block";
 
-  // Generate a dataset per size with distinct colors (golden angle spacing)
+  // Build matrix: Color -> { Size -> value }
+  const colorStockMap = {};
+  const allSizes = new Set();
+
+  variants.forEach(v => {
+    const color = v.COLOR || "Standard";
+    const size = v.SIZE || "Standard";
+    const stock = getStock(v);
+    const vSetSize = parseInt(v["CHURI IN A SET"]) || setSize;
+    const value = unitMode === "pieces" ? stock : (Math.round((stock / vSetSize) * 10) / 10);
+
+    allSizes.add(size);
+    if (!colorStockMap[color]) colorStockMap[color] = {};
+    colorStockMap[color][size] = (colorStockMap[color][size] || 0) + value;
+  });
+
+  const sortedSizes = [...allSizes].sort((a, b) => (parseFloat(a) || 0) - (parseFloat(b) || 0));
+  const colorTotals = Object.entries(colorStockMap).map(([color, sizeMap]) => {
+    const total = Object.values(sizeMap).reduce((s, val) => s + val, 0);
+    return { color, total };
+  }).sort((a, b) => b.total - a.total);
+
+  const sortedColors = colorTotals.map(c => c.color);
+
   const datasets = sortedSizes.map((size, i) => {
     const hue = (i * 137.5) % 360;
     return {
       label: `Size ${size}`,
       data: sortedColors.map(color => colorStockMap[color]?.[size] || 0),
-      backgroundColor: `hsla(${hue}, 65%, 55%, 0.85)`,
-      borderColor: `hsla(${hue}, 65%, 42%, 1)`,
+      backgroundColor: `hsla(${hue}, 70%, 55%, 0.85)`,
+      borderColor: `hsla(${hue}, 70%, 42%, 1)`,
       borderWidth: 1,
-      borderRadius: 5,
+      borderRadius: 4,
     };
   });
 
   destroyChart("productStockChart");
   const ctx = canvas.getContext("2d");
 
-  // Bar label plugin — show set count on top of each bar
   const stockLabelPlugin = {
     id: 'stockBarLabels',
     afterDatasetsDraw(chart) {
@@ -976,10 +1647,10 @@ function renderProductStockChart(productName) {
       chart.data.datasets.forEach((dataset, di) => {
         chart.getDatasetMeta(di).data.forEach((bar, i) => {
           const val = dataset.data[i];
-          if (!val) return;
+          if (!val || val <= 0) return;
           ctx2.save();
-          ctx2.font = 'bold 10px Inter, sans-serif';
-          ctx2.fillStyle = 'rgba(255,255,255,0.9)';
+          ctx2.font = 'bold 9px Inter, sans-serif';
+          ctx2.fillStyle = 'rgba(255,255,255,0.95)';
           ctx2.textAlign = 'center';
           ctx2.textBaseline = 'bottom';
           ctx2.fillText(val, bar.x, bar.y - 3);
@@ -1001,12 +1672,13 @@ function renderProductStockChart(productName) {
         legend: {
           display: true,
           position: "top",
-          labels: { usePointStyle: true, padding: 12, font: { size: 11 } }
+          labels: { usePointStyle: true, padding: 10, font: { size: 11 } }
         },
         tooltip: {
           callbacks: {
             label: function(context) {
-              return `${context.dataset.label}: ${context.parsed.y} set${context.parsed.y !== 1 ? 's' : ''}`;
+              const u = unitMode === "pieces" ? "pcs" : "sets";
+              return `${context.dataset.label}: ${context.parsed.y} ${u}`;
             }
           }
         }
@@ -1014,13 +1686,13 @@ function renderProductStockChart(productName) {
       scales: {
         x: {
           title: { display: true, text: "Color", font: { size: 11, weight: '600' } },
-          ticks: { autoSkip: false, maxRotation: 45, minRotation: 30, font: { size: 10 } }
+          ticks: { autoSkip: false, maxRotation: 45, minRotation: 25, font: { size: 10 } }
         },
         y: {
           beginAtZero: true,
-          title: { display: true, text: "Sets", font: { size: 11, weight: '600' } },
+          title: { display: true, text: unitMode === "pieces" ? "Pieces" : "Sets", font: { size: 11, weight: '600' } },
           ticks: {
-            stepSize: 1,
+            stepSize: unitMode === "pieces" ? 6 : 1,
             callback: function(value) { return Number.isInteger(value) ? value : ''; }
           }
         }
@@ -1134,7 +1806,7 @@ function renderLowStockTable() {
 
   // Aggregate stock by product NAME only (not per color/size variant)
   const productMap = {};
-  allInventory.forEach(item => {
+  activeInventory.forEach(item => {
     const name = item.NAME || "Unknown";
     const remaining = getStock(item);
     const setSize = parseInt(item["CHURI IN A SET"]) || 1;
@@ -1258,7 +1930,7 @@ function renderTrendingFinishingSoon(salesData) {
   // Step 2: Compute current stock per product name
   const productStock = {};
   const productMeta = {};
-  allInventory.forEach(item => {
+  activeInventory.forEach(item => {
     const name = item.NAME || "Unknown";
     const remaining = getStock(item);
     const setSize = parseInt(item["CHURI IN A SET"]) || 1;
